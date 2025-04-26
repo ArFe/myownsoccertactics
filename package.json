@@ -1,4 +1,8 @@
 {
   "name": "myownsoccertactics",
-  "packageManager": "yarn@4.5.2"
-}
+  "private": true,
+  "workspaces": [
+    "client"
+  ],
+  "packageManager": "yarn@1.22.22"
+} 
