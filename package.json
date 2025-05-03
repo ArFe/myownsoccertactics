@@ -4,5 +4,8 @@
   "workspaces": [
     "client"
   ],
-  "packageManager": "yarn@1.22.22"
+  "packageManager": "yarn@1.22.22",
+  "scripts": {
+    "client": "yarn workspace client dev"
+  }
 } 

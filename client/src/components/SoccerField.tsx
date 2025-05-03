@@ -4,7 +4,11 @@ import Draggable from 'react-draggable';
 import soccerFieldBg from '../assets/soccer field background 1003.jpg';
 import soccerBall from '../assets/ball.svg';
 import SettingsMenu from './SettingsMenu';
+import PlaysList, { Play } from './PlaysList';
 import useLocalStorage from '../hooks/useLocalStorage';
+import { default442Positions } from '../utils/formations';
+import { useRecording } from '../hooks/useRecording';
+import { usePlayback } from '../hooks/usePlayback';
 
 const FieldContainer = styled.div`
   position: relative;
@@ -124,12 +128,56 @@ const SettingsButton = styled.button`
   }
 `;
 
-interface PlayerPosition {
+const RecordButton = styled.button`
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
+  font-size: 24px;
+
+  &:hover {
+    background-color: #c0392b;
+    transform: scale(1.1);
+  }
+
+  &.recording {
+    background-color: #2ecc71;
+    animation: pulse 1.5s infinite;
+
+    &:hover {
+      background-color: #27ae60;
+    }
+  }
+
+  @keyframes pulse {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+`;
+
+export interface PlayerPosition {
   x: number;
   y: number;
 }
-
-export type { PlayerPosition };
 
 interface Settings {
   playerSize: 'small' | 'medium' | 'large';
@@ -177,13 +225,58 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
   settings = defaultSettings
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isPlaysOpen, setIsPlaysOpen] = useState(false);
   const [fieldSize, setFieldSize] = useState({ width: 0, height: 0 });
   const [ballPosition, setBallPosition] = useLocalStorage<PlayerPosition>('ballPosition', { x: 0, y: 0 });
   const [currentSettings, setCurrentSettings] = useLocalStorage<Settings>('fieldSettings', settings);
-  const [storedHomeTeam, setStoredHomeTeam] = useLocalStorage<PlayerPosition[]>('homeTeam', homeTeam);
-  const [storedAwayTeam, setStoredAwayTeam] = useLocalStorage<PlayerPosition[]>('awayTeam', awayTeam);
+  const [storedHomeTeam, setStoredHomeTeam] = useLocalStorage<PlayerPosition[]>('homeTeam', homeTeam || []);
+  const [storedAwayTeam, setStoredAwayTeam] = useLocalStorage<PlayerPosition[]>('awayTeam', awayTeam || []);
+  const [plays, setPlays] = useLocalStorage<Play[]>('plays', []);
   const fieldRef = useRef<HTMLDivElement>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const currentPlayRef = useRef<Play | null>(null);
+
+  const { isRecording, startRecording, stopRecording } = useRecording({
+    homeTeam: storedHomeTeam,
+    awayTeam: storedAwayTeam,
+    ballPosition,
+    onRecord: (movements) => {
+      const newPlay: Play = {
+        id: Date.now().toString(),
+        name: `Play ${plays.length + 1}`,
+        description: `Recorded on ${new Date().toLocaleString()}`,
+        homeTeam: storedHomeTeam,
+        awayTeam: storedAwayTeam,
+        ballPosition: ballPosition,
+        movements: movements
+      };
+
+      console.log('Created new play:', newPlay);
+      setPlays((prev: Play[]): Play[] => [...prev, newPlay]);
+    }
+  });
+
+  const {
+    isPlaying,
+    currentTime,
+    duration,
+    currentIndex,
+    totalNumberOfPlays,
+    playbackSpeed,
+    startPlayback,
+    pausePlayback,
+    stopPlayback,
+    seekTo,
+    setSpeed
+  } = usePlayback({
+    play: currentPlayRef.current,
+    onPositionUpdate: (homeTeam, awayTeam, ballPosition) => {
+      console.log('Updating positions:', { homeTeam, awayTeam, ballPosition });
+      setStoredHomeTeam([...homeTeam]);
+      setStoredAwayTeam([...awayTeam]);
+      setBallPosition(ballPosition);
+    }
+  });
 
   useEffect(() => {
     // Load the image to get its dimensions
@@ -270,55 +363,139 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     
     // Update stored positions
     if (team === 'home') {
-      const newHomeTeam = [...storedHomeTeam];
-      newHomeTeam[index] = relativePos;
-      setStoredHomeTeam(newHomeTeam);
+      setStoredHomeTeam(prev => {
+        const newHomeTeam = [...prev];
+        newHomeTeam[index] = relativePos;
+        console.log('Updated home team position:', newHomeTeam);
+        return newHomeTeam;
+      });
     } else {
-      const newAwayTeam = [...storedAwayTeam];
-      newAwayTeam[index] = relativePos;
-      setStoredAwayTeam(newAwayTeam);
+      setStoredAwayTeam(prev => {
+        const newAwayTeam = [...prev];
+        newAwayTeam[index] = relativePos;
+        console.log('Updated away team position:', newAwayTeam);
+        return newAwayTeam;
+      });
     }
   };
 
   const handleBallMove = (x: number, y: number) => {
     const relativePos = getRelativePosition(x, y);
     setBallPosition(relativePos);
+    console.log('Updated ball position:', relativePos);
     if (onBallMove) {
       onBallMove(relativePos);
     }
   };
 
   const handleSettingsChange = <K extends keyof Settings>(key: K, value: Settings[K]) => {
-    setCurrentSettings((prev: Settings) => {
+    setCurrentSettings((prev: Settings): Settings => {
       const newSettings = { ...prev, [key]: value };
       return newSettings;
     });
   };
 
   const handleRestoreDefaults = () => {
+    console.log('Restoring defaults');
+    console.log('Default home team:', default442Positions.homeTeam);
+    console.log('Default away team:', default442Positions.awayTeam);
+
     // Reset settings to default values
     setCurrentSettings(defaultSettings);
     
     // Reset ball position to center
     setBallPosition({ x: 0, y: 0 });
     
-    // Reset team positions to their initial positions
-    setStoredHomeTeam(homeTeam);
-    setStoredAwayTeam(awayTeam);
+    // Reset team positions to their default positions
+    setStoredHomeTeam([...default442Positions.homeTeam]);
+    setStoredAwayTeam([...default442Positions.awayTeam]);
     
     // Notify parent components of position changes
-    homeTeam.forEach((pos, index) => onPlayerMove('home', index, pos));
-    awayTeam.forEach((pos, index) => onPlayerMove('away', index, pos));
+    default442Positions.homeTeam.forEach((pos, index) => onPlayerMove('home', index, pos));
+    default442Positions.awayTeam.forEach((pos, index) => onPlayerMove('away', index, pos));
     if (onBallMove) {
       onBallMove({ x: 0, y: 0 });
     }
   };
 
+  const handlePlaybackControl = (action: 'play' | 'pause' | 'stop' | 'seek' | 'speed', value?: number) => {
+    console.log('Playback control:', action, value);
+    switch (action) {
+      case 'play':
+        if (currentPlayRef.current) {
+          startPlayback();
+        }
+        break;
+      case 'pause':
+        pausePlayback();
+        console.log("currentIndex", currentIndex);
+        console.log("totalNumberOfPlays", totalNumberOfPlays);
+        console.log("currentPlayRef.current", currentPlayRef.current);
+        break;
+      case 'stop':
+        stopPlayback();
+        break;
+      case 'seek':
+        if (value !== undefined && currentPlayRef.current) {
+          seekTo(value);
+        }
+        break;
+      case 'speed':
+        if (value !== undefined) {
+          setSpeed(value);
+        }
+        break;
+    }
+  };
+
+  const handlePlaySelect = (play: Play) => {
+    console.log('Selecting play:', play);
+    currentPlayRef.current = play;
+    stopPlayback();
+    // Reset positions to the first frame
+    if (play.movements) {
+      setStoredHomeTeam([...play.movements.homeTeam[0]]);
+      setStoredAwayTeam([...play.movements.awayTeam[0]]);
+      setBallPosition(play.movements.ballPosition[0]);
+    }
+  };
+
+  const handlePlayDelete = (playId: string) => {
+    setPlays((prev) => prev.filter(play => play.id !== playId));
+  };
+
+  const handleDeleteAllPlays = () => {
+    if (window.confirm('Are you sure you want to delete all plays? This action cannot be undone.')) {
+      setPlays([]);
+    }
+  };
+
   return (
     <>
+      <PlaysList
+        isOpen={isPlaysOpen}
+        onToggle={() => setIsPlaysOpen(!isPlaysOpen)}
+        plays={plays}
+        onPlaySelect={handlePlaySelect}
+        onPlayDelete={handlePlayDelete}
+        onDeleteAll={handleDeleteAllPlays}
+        onPlaybackControl={handlePlaybackControl}
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        duration={duration}
+        currentIndex={currentIndex}
+        totalNumberOfPlays={totalNumberOfPlays}
+        playbackSpeed={playbackSpeed}
+      />
       <SettingsButton onClick={() => setIsMenuOpen(!isMenuOpen)}>
         ⚙️
       </SettingsButton>
+      <RecordButton
+        className={isRecording ? 'recording' : ''}
+        onClick={isRecording ? stopRecording : startRecording}
+      >
+        {isRecording ? '⏺' : '➕'}
+      </RecordButton>
       <SettingsMenu
         isOpen={isMenuOpen}
         playerSize={currentSettings.playerSize}
@@ -334,21 +511,21 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
       />
       <FieldContainer ref={fieldRef}>
         <FieldContent style={{ width: fieldSize.width, height: fieldSize.height }}>
-          {storedHomeTeam.map((player, index) => (
+          {storedHomeTeam?.map((player, index) => (
             <Draggable
               key={`home-${index}`}
               position={getAbsolutePosition(player)}
-              onStop={(e, data) => handlePlayerMove('home', index, data.x, data.y)}
+              onDrag={(e, data) => handlePlayerMove('home', index, data.x, data.y)}
               bounds="parent"
             >
               <Player color={currentSettings.homeColor} fieldSize={fieldSize} size={currentSettings.playerSize}>{index + 1}</Player>
             </Draggable>
           ))}
-          {storedAwayTeam.map((player, index) => (
+          {storedAwayTeam?.map((player, index) => (
             <Draggable
               key={`away-${index}`}
               position={getAbsolutePosition(player)}
-              onStop={(e, data) => handlePlayerMove('away', index, data.x, data.y)}
+              onDrag={(e, data) => handlePlayerMove('away', index, data.x, data.y)}
               bounds="parent"
             >
               <Player color={currentSettings.awayColor} fieldSize={fieldSize} size={currentSettings.playerSize}>{index + 1}</Player>
@@ -356,7 +533,7 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
           ))}
           <Draggable
             position={getAbsolutePosition(ballPosition)}
-            onStop={(e, data) => handleBallMove(data.x, data.y)}
+            onDrag={(e, data) => handleBallMove(data.x, data.y)}
             bounds="parent"
           >
             <Ball fieldSize={fieldSize} size={currentSettings.ballSize} />
