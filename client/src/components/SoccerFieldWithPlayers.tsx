@@ -6,6 +6,7 @@ import { PlayerPosition } from './SoccerField';
 const SoccerFieldWithPlayers: React.FC = () => {
   const [homeTeam, setHomeTeam] = useState<PlayerPosition[]>(default442Positions.homeTeam);
   const [awayTeam, setAwayTeam] = useState<PlayerPosition[]>(default442Positions.awayTeam);
+  const [ballPosition, setBallPosition] = useState<PlayerPosition>(default442Positions.ball);
 
   const handlePlayerMove = (team: 'home' | 'away', index: number, position: PlayerPosition) => {
     if (team === 'home') {
@@ -23,11 +24,17 @@ const SoccerFieldWithPlayers: React.FC = () => {
     }
   };
 
+  const handleBallMove = (position: PlayerPosition) => {
+    setBallPosition(position);
+  };
+
   return (
     <SoccerField
       homeTeam={homeTeam}
       awayTeam={awayTeam}
+      ballPosition={ballPosition}
       onPlayerMove={handlePlayerMove}
+      onBallMove={handleBallMove}
     />
   );
 };

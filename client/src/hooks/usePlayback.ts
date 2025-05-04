@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { PlayerPosition } from '../components/SoccerField';
 import { Play } from '../components/PlaysList';
+import GIF from 'gif.js';
 
 interface UsePlaybackProps {
   play: Play | null;
@@ -8,6 +9,7 @@ interface UsePlaybackProps {
 }
 
 export const usePlayback = ({ play, onPositionUpdate }: UsePlaybackProps) => {
+  const fieldRef = useRef<HTMLDivElement>(null);
   const defaultSpeed = 0.040;
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -17,11 +19,20 @@ export const usePlayback = ({ play, onPositionUpdate }: UsePlaybackProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentIndexRef = useRef<number>(0);
   const [totalNumberOfPlays, setTotalNumberOfPlays] = useState(0);
+  const gif = useRef<GIF>();
+
   const startPlayback = () => {
     if (!play?.movements) return;
 
+    gif.current = new GIF({
+      workers: 2,
+      workerScript: '/gif.worker.js',
+      quality: 10,
+      width: 1304,
+      height: 851
+    });
     setIsPlaying(true);
-    setTotalNumberOfPlays(play.movements.timestamps.length);
+    setTotalNumberOfPlays(play.movements.ballPosition.length);
     currentIndexRef.current = 0;
     scheduleNextFrame();
   };
@@ -39,6 +50,17 @@ export const usePlayback = ({ play, onPositionUpdate }: UsePlaybackProps) => {
     setIsPlaying(false);
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
+    }
+    if (gif.current && !gif.current.running) {
+      console.log("Saving gif");
+      gif.current.on('finished', function(blob) {
+        window.open(URL.createObjectURL(blob));
+      });
+  
+      gif.current.render();
+    } else {
+      console.log("Gif is already running");
+      gif.current?.abort();
     }
   };
 
@@ -68,7 +90,15 @@ export const usePlayback = ({ play, onPositionUpdate }: UsePlaybackProps) => {
 
   const scheduleNextFrame = () => {
     if (!play?.movements) return;
-
+    const field = document.getElementById('soccer-field') as HTMLCanvasElement;
+    if (field && gif.current) {
+      console.log("Adding frame");
+      gif.current.addFrame(field, {
+        delay: defaultSpeed*1000/playbackSpeed,
+        copy: true,
+        dispose: 2
+      });
+    };
     const elapsedTime = defaultSpeed*currentIndexRef.current;
     setCurrentTime(elapsedTime);
 
@@ -90,13 +120,12 @@ export const usePlayback = ({ play, onPositionUpdate }: UsePlaybackProps) => {
     const timePerFrame = defaultSpeed*1000/playbackSpeed;
     timeoutRef.current = setTimeout(scheduleNextFrame, timePerFrame);
     setCurrentIndex(nextIndex);
-    console.log("currentIndex", nextIndex);
   };
 
   useEffect(() => {
     if (play?.movements) {
       const startTime = 0;
-      const endTime = (play.movements.timestamps.length - 1) * defaultSpeed;
+      const endTime = (play.movements.ballPosition.length - 1) * defaultSpeed;
       console.log("duration", endTime - startTime);
       console.log(startTime, endTime);
       setDuration((endTime - startTime)); // Convert to seconds for display

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import Draggable from 'react-draggable';
 import soccerFieldBg from '../assets/soccer field background 1003.jpg';
 import soccerBall from '../assets/ball.svg';
 import SettingsMenu from './SettingsMenu';
@@ -23,6 +22,18 @@ const FieldContainer = styled.div`
   align-items: center;
 `;
 
+const Canvas = styled.canvas`
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: auto;
+  background-image: url(${soccerFieldBg});
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+`;
+
 const FieldContent = styled.div`
   position: relative;
   width: 100%;
@@ -30,6 +41,10 @@ const FieldContent = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
+  background-image: url(${soccerFieldBg});
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
 `;
 
 const Player = styled.div<{ color: string; fieldSize: { width: number; height: number }; size: 'small' | 'medium' | 'large' }>`
@@ -212,6 +227,7 @@ const getSizePercentage = (size: 'small' | 'medium' | 'large', type: 'player' | 
 interface SoccerFieldProps {
   homeTeam: PlayerPosition[];
   awayTeam: PlayerPosition[];
+  ballPosition: PlayerPosition;
   onPlayerMove: (team: 'home' | 'away', index: number, position: PlayerPosition) => void;
   onBallMove?: (position: PlayerPosition) => void;
   settings?: Settings;
@@ -220,6 +236,7 @@ interface SoccerFieldProps {
 const SoccerField: React.FC<SoccerFieldProps> = ({
   homeTeam,
   awayTeam,
+  ballPosition,
   onPlayerMove,
   onBallMove,
   settings = defaultSettings
@@ -227,15 +244,18 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPlaysOpen, setIsPlaysOpen] = useState(false);
   const [fieldSize, setFieldSize] = useState({ width: 0, height: 0 });
-  const [ballPosition, setBallPosition] = useLocalStorage<PlayerPosition>('ballPosition', { x: 0, y: 0 });
+  const [localBallPosition, setLocalBallPosition] = useLocalStorage<PlayerPosition>('ballPosition', ballPosition);
   const [currentSettings, setCurrentSettings] = useLocalStorage<Settings>('fieldSettings', settings);
   const [storedHomeTeam, setStoredHomeTeam] = useLocalStorage<PlayerPosition[]>('homeTeam', homeTeam || []);
   const [storedAwayTeam, setStoredAwayTeam] = useLocalStorage<PlayerPosition[]>('awayTeam', awayTeam || []);
   const [plays, setPlays] = useLocalStorage<Play[]>('plays', []);
-  const fieldRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const currentPlayRef = useRef<Play | null>(null);
+  const isDraggingRef = useRef<{ type: 'player' | 'ball' | null; team: 'home' | 'away' | null; index: number | null }>({ type: null, team: null, index: null });
 
+
+ 
   const { isRecording, startRecording, stopRecording } = useRecording({
     homeTeam: storedHomeTeam,
     awayTeam: storedAwayTeam,
@@ -271,15 +291,15 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
   } = usePlayback({
     play: currentPlayRef.current,
     onPositionUpdate: (homeTeam, awayTeam, ballPosition) => {
-      console.log('Updating positions:', { homeTeam, awayTeam, ballPosition });
+      // console.log('Updating positions:', { homeTeam, awayTeam, ballPosition });
       setStoredHomeTeam([...homeTeam]);
       setStoredAwayTeam([...awayTeam]);
-      setBallPosition(ballPosition);
+      setLocalBallPosition(ballPosition);
     }
   });
 
+  // Load the image to get its dimensions
   useEffect(() => {
-    // Load the image to get its dimensions
     const img = new Image();
     img.src = soccerFieldBg;
     img.onload = () => {
@@ -289,8 +309,10 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
 
   useEffect(() => {
     const updateFieldSize = () => {
-      if (fieldRef.current && imageSize.width > 0) {
-        const container = fieldRef.current;
+      if (canvasRef.current && imageSize.width > 0) {
+        const container = canvasRef.current.parentElement;
+        if (!container) return;
+
         const containerWidth = container.clientWidth;
         const containerHeight = container.clientHeight;
         const imageRatio = imageSize.width / imageSize.height;
@@ -307,34 +329,165 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
           height = width / imageRatio;
         }
 
+        // Set the canvas size to match the field image exactly
+        canvasRef.current.style.width = `${width}px`;
+        canvasRef.current.style.height = `${height}px`;
+        canvasRef.current.width = width;
+        canvasRef.current.height = height;
+
         setFieldSize({ width, height });
+        drawField();
       }
     };
 
-    updateFieldSize();
     window.addEventListener('resize', updateFieldSize);
+    updateFieldSize();
+
     return () => window.removeEventListener('resize', updateFieldSize);
   }, [imageSize]);
 
+  useEffect(() => {
+    drawField();
+  }, [storedHomeTeam, storedAwayTeam, localBallPosition, currentSettings, fieldSize]);
+
+  const drawField = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw background
+    const bgImg = new Image();
+    bgImg.src = soccerFieldBg;
+    bgImg.onload = () => {
+      ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+      
+      // Draw players
+      const drawPlayer = (x: number, y: number, color: string, number: number) => {
+        const size = Math.min(fieldSize.width, fieldSize.height) * getSizePercentage(currentSettings.playerSize, 'player');
+        ctx.beginPath();
+        ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw player number
+        ctx.fillStyle = 'white';
+        ctx.font = `${size * 0.5}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(number.toString(), x, y);
+      };
+
+      // Draw home team
+      storedHomeTeam.forEach((player, index) => {
+        const { x, y } = getAbsolutePosition(player);
+        drawPlayer(x, y, currentSettings.homeColor, index + 1);
+      });
+
+      // Draw away team
+      storedAwayTeam.forEach((player, index) => {
+        const { x, y } = getAbsolutePosition(player);
+        drawPlayer(x, y, currentSettings.awayColor, index + 1);
+      });
+
+      // Draw ball
+      const ballSize = Math.min(fieldSize.width, fieldSize.height) * getSizePercentage(currentSettings.ballSize, 'ball');
+      const { x, y } = getAbsolutePosition(localBallPosition);
+      const ballImg = new Image();
+      ballImg.src = soccerBall;
+      ballImg.onload = () => {
+        ctx.drawImage(ballImg, x - ballSize / 2, y - ballSize / 2, ballSize, ballSize);
+      };
+    };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const relativePos = getRelativePosition(x, y);
+
+    // Check if clicked on a player or ball
+    const playerSize = Math.min(fieldSize.width, fieldSize.height) * getSizePercentage(currentSettings.playerSize, 'player');
+    const ballSize = Math.min(fieldSize.width, fieldSize.height) * getSizePercentage(currentSettings.ballSize, 'ball');
+
+    // Check home team
+    for (let i = 0; i < storedHomeTeam.length; i++) {
+      const playerPos = getAbsolutePosition(storedHomeTeam[i]);
+      const distance = Math.sqrt(Math.pow(x - playerPos.x, 2) + Math.pow(y - playerPos.y, 2));
+      if (distance <= playerSize / 2) {
+        isDraggingRef.current = { type: 'player', team: 'home', index: i };
+        return;
+      }
+    }
+
+    // Check away team
+    for (let i = 0; i < storedAwayTeam.length; i++) {
+      const playerPos = getAbsolutePosition(storedAwayTeam[i]);
+      const distance = Math.sqrt(Math.pow(x - playerPos.x, 2) + Math.pow(y - playerPos.y, 2));
+      if (distance <= playerSize / 2) {
+        isDraggingRef.current = { type: 'player', team: 'away', index: i };
+        return;
+      }
+    }
+
+    // Check ball
+    const ballPos = getAbsolutePosition(localBallPosition);
+    const ballDistance = Math.sqrt(Math.pow(x - ballPos.x, 2) + Math.pow(y - ballPos.y, 2));
+    if (ballDistance <= ballSize / 2) {
+      isDraggingRef.current = { type: 'ball', team: null, index: null };
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDraggingRef.current.type) return;
+
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const relativePos = getRelativePosition(x, y);
+
+    if (isDraggingRef.current.type === 'player' && isDraggingRef.current.team && isDraggingRef.current.index !== null) {
+      handlePlayerMove(isDraggingRef.current.team, isDraggingRef.current.index, x, y);
+    } else if (isDraggingRef.current.type === 'ball') {
+      handleBallMove(x, y);
+    }
+  };
+
+  const handleMouseUp = () => {
+    isDraggingRef.current = { type: null, team: null, index: null };
+  };
+
   // Convert relative position (-0.5 to 0.5) to absolute pixel position
   const getAbsolutePosition = (pos: PlayerPosition) => {
-    if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') {
-      return { x: 0, y: 0 };
-    }
-    
     const fieldWidth = fieldSize.width;
     const fieldHeight = fieldSize.height;
     
     // Calculate the center point of the field
-    const centerX = 0;
-    const centerY = 0;
+    const centerX = fieldWidth / 2;
+    const centerY = fieldHeight / 2;
     
     // Calculate the position relative to the center
     // x and y are in range -0.5 to 0.5, where 0 is center
     const x = centerX + (pos.x * fieldWidth);
     const y = centerY + (pos.y * fieldHeight);
     
-    return { x, y };
+    // Ensure positions are within the field boundaries
+    return {
+      x: Math.max(0, Math.min(fieldWidth, x)),
+      y: Math.max(0, Math.min(fieldHeight, y))
+    };
   };
 
   // Convert absolute pixel position to relative position (-0.5 to 0.5)
@@ -343,14 +496,14 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     const fieldHeight = fieldSize.height;
     
     // Calculate the center point of the field
-    const centerX = 0;
-    const centerY = 0;
+    const centerX = fieldWidth / 2;
+    const centerY = fieldHeight / 2;
     
     // Calculate the relative position from the center
     const relativeX = (x - centerX) / fieldWidth;
     const relativeY = (y - centerY) / fieldHeight;
     
-    // Clamp to field boundaries
+    // Clamp to field boundaries and ensure proper scaling
     return {
       x: Math.max(-0.5, Math.min(0.5, relativeX)),
       y: Math.max(-0.5, Math.min(0.5, relativeY))
@@ -361,28 +514,24 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     const relativePos = getRelativePosition(x, y);
     onPlayerMove(team, index, relativePos);
     
-    // Update stored positions
     if (team === 'home') {
       setStoredHomeTeam(prev => {
-        const newHomeTeam = [...prev];
-        newHomeTeam[index] = relativePos;
-        console.log('Updated home team position:', newHomeTeam);
-        return newHomeTeam;
+        const newTeam = [...prev];
+        newTeam[index] = relativePos;
+        return newTeam;
       });
     } else {
       setStoredAwayTeam(prev => {
-        const newAwayTeam = [...prev];
-        newAwayTeam[index] = relativePos;
-        console.log('Updated away team position:', newAwayTeam);
-        return newAwayTeam;
+        const newTeam = [...prev];
+        newTeam[index] = relativePos;
+        return newTeam;
       });
     }
   };
 
   const handleBallMove = (x: number, y: number) => {
     const relativePos = getRelativePosition(x, y);
-    setBallPosition(relativePos);
-    console.log('Updated ball position:', relativePos);
+    setLocalBallPosition(relativePos);
     if (onBallMove) {
       onBallMove(relativePos);
     }
@@ -404,7 +553,7 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     setCurrentSettings(defaultSettings);
     
     // Reset ball position to center
-    setBallPosition({ x: 0, y: 0 });
+    setLocalBallPosition({ x: 0, y: 0 });
     
     // Reset team positions to their default positions
     setStoredHomeTeam([...default442Positions.homeTeam]);
@@ -456,7 +605,7 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     if (play.movements) {
       setStoredHomeTeam([...play.movements.homeTeam[0]]);
       setStoredAwayTeam([...play.movements.awayTeam[0]]);
-      setBallPosition(play.movements.ballPosition[0]);
+      setLocalBallPosition(play.movements.ballPosition[0]);
     }
   };
 
@@ -487,65 +636,42 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
         totalNumberOfPlays={totalNumberOfPlays}
         playbackSpeed={playbackSpeed}
       />
-      <SettingsButton onClick={() => setIsMenuOpen(!isMenuOpen)}>
+      <SettingsButton onClick={() => setIsMenuOpen(true)}>
         ⚙️
       </SettingsButton>
       <RecordButton
         className={isRecording ? 'recording' : ''}
         onClick={isRecording ? stopRecording : startRecording}
       >
-        {isRecording ? '⏺' : '➕'}
+        {isRecording ? '⏺' : '⏺'}
       </RecordButton>
-      <SettingsMenu
-        isOpen={isMenuOpen}
-        playerSize={currentSettings.playerSize}
-        ballSize={currentSettings.ballSize}
-        homeColor={currentSettings.homeColor}
-        awayColor={currentSettings.awayColor}
-        onPlayerSizeChange={(size) => handleSettingsChange('playerSize', size)}
-        onBallSizeChange={(size) => handleSettingsChange('ballSize', size)}
-        onHomeColorChange={(color) => handleSettingsChange('homeColor', color)}
-        onAwayColorChange={(color) => handleSettingsChange('awayColor', color)}
-        onToggle={() => setIsMenuOpen(!isMenuOpen)}
-        onRestoreDefaults={handleRestoreDefaults}
-      />
-      <FieldContainer ref={fieldRef}>
-        <FieldContent style={{ width: fieldSize.width, height: fieldSize.height }}>
-          {storedHomeTeam?.map((player, index) => (
-            <Draggable
-              key={`home-${index}`}
-              position={getAbsolutePosition(player)}
-              onDrag={(e, data) => handlePlayerMove('home', index, data.x, data.y)}
-              bounds="parent"
-            >
-              <Player color={currentSettings.homeColor} fieldSize={fieldSize} size={currentSettings.playerSize}>{index + 1}</Player>
-            </Draggable>
-          ))}
-          {storedAwayTeam?.map((player, index) => (
-            <Draggable
-              key={`away-${index}`}
-              position={getAbsolutePosition(player)}
-              onDrag={(e, data) => handlePlayerMove('away', index, data.x, data.y)}
-              bounds="parent"
-            >
-              <Player color={currentSettings.awayColor} fieldSize={fieldSize} size={currentSettings.playerSize}>{index + 1}</Player>
-            </Draggable>
-          ))}
-          <Draggable
-            position={getAbsolutePosition(ballPosition)}
-            onDrag={(e, data) => handleBallMove(data.x, data.y)}
-            bounds="parent"
-          >
-            <Ball fieldSize={fieldSize} size={currentSettings.ballSize} />
-          </Draggable>
-        </FieldContent>
+      {isMenuOpen && (
+        <SettingsMenu
+          isOpen={isMenuOpen}
+          playerSize={currentSettings.playerSize}
+          ballSize={currentSettings.ballSize}
+          homeColor={currentSettings.homeColor}
+          awayColor={currentSettings.awayColor}
+          onPlayerSizeChange={(size) => handleSettingsChange('playerSize', size)}
+          onBallSizeChange={(size) => handleSettingsChange('ballSize', size)}
+          onHomeColorChange={(color) => handleSettingsChange('homeColor', color)}
+          onAwayColorChange={(color) => handleSettingsChange('awayColor', color)}
+          onToggle={() => setIsMenuOpen(false)}
+          onRestoreDefaults={handleRestoreDefaults}
+        />
+      )}
+      <FieldContainer>
+        <Canvas id="soccer-field"
+          ref={canvasRef}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        />
         <Attribution>
-          <div>
-            Field background by <AttributionLink href="https://www.vecteezy.com/vector-art/234128-soccer-field-background" target="_blank" rel="noopener noreferrer">Vecteezy</AttributionLink>
-          </div>
-          <div>
-            Ball icon by <AttributionLink href="https://www.vecteezy.com/vector-art/550584-soccer-ball-vector-icon" target="_blank" rel="noopener noreferrer">Vecteezy</AttributionLink>
-          </div>
+          <AttributionLink href="https://www.freepik.com/free-vector/soccer-field-background_1003.htm" target="_blank" rel="noopener noreferrer">
+            Soccer field background by Freepik
+          </AttributionLink>
         </Attribution>
       </FieldContainer>
     </>

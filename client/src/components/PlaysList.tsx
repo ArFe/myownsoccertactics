@@ -192,7 +192,6 @@ export interface Play {
     homeTeam: PlayerPosition[][];
     awayTeam: PlayerPosition[][];
     ballPosition: PlayerPosition[];
-    timestamps: number[];
   };
 }
 
