@@ -11,3 +11,6 @@
 
 #!.yarn/cache
 .pnp.*
+
+# Dependencies are installed with yarn, not committed
+node_modules/
