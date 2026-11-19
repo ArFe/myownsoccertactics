@@ -169,26 +169,54 @@ export const useRecording = ({ homeTeam, awayTeam, ballPosition, onRecord }: Use
   }
 
   // Create a function to condense movements
-  // Group all movements in the beginning of the array
   // Consider a movement when the value is different from the previous value
-  // The end of the play is the longest movement of all players or the ball
-  // At the end of the array, repeat the last movement until the end of the play
-  const squashMovements = (movements: RecordedMovements) => {
-    const groupedPositions = groupPositions(movements);
-    console.log('groupedPositions', groupedPositions);  
-    const validMovements = createValidMovements(groupedPositions);
-    console.log('validMovements', validMovements);
-    const longestMovement = checkLongestMovement(validMovements);
-    console.log('longestMovement', longestMovement);
-    const recordedMovements = mapPositionsToRecordedMovements(validMovements, movements, longestMovement);
-    console.log('recordedMovements', recordedMovements);
-    return recordedMovements;
-  }
+  // Move the home team and the ball first, then the away team
+  // The longest movement is the longest of the ball and the home team, plus the longest of the away team
+  // The away team remain still while the home team and the ball are moving
+  // The home team and the ball are still while the away team is moving
+  const condenseMovements = (movements: RecordedMovements): RecordedMovements => {
+    // Get valid movements for home team and ball
+    const homeTeamAndBallMovements = {
+      homeTeam: movements.homeTeam.map(frame => frame.map(player => ({ ...player }))),
+      ballPosition: movements.ballPosition.map(pos => ({ ...pos }))
+    };
+
+    // Find the longest movement for home team and ball
+    const homeTeamAndBallLength = Math.max(
+      ...homeTeamAndBallMovements.homeTeam.map(frame => frame.length),
+      homeTeamAndBallMovements.ballPosition.length
+    );
+
+    // Create the condensed movements
+    const condensedMovements: RecordedMovements = {
+      homeTeam: [],
+      awayTeam: [],
+      ballPosition: []
+    };
+
+    // Record home team and ball movements while keeping away team stationary
+    for (let i = 0; i < homeTeamAndBallLength; i++) {
+      // Add home team positions
+      condensedMovements.homeTeam.push(
+        homeTeamAndBallMovements.homeTeam[i] || homeTeamAndBallMovements.homeTeam[homeTeamAndBallMovements.homeTeam.length - 1]
+      );
+
+      // Add ball position
+      condensedMovements.ballPosition.push(
+        homeTeamAndBallMovements.ballPosition[i] || homeTeamAndBallMovements.ballPosition[homeTeamAndBallMovements.ballPosition.length - 1]
+      );
+
+      // Keep away team in their initial position
+      condensedMovements.awayTeam.push(movements.awayTeam[0]);
+    }
+
+    return condensedMovements;
+  };
 
   const stopRecording = () => {
     setIsRecording(false);
-    const squashedMovements = squashMovements(recordedMovements);
-    onRecord(squashedMovements);
+    const condensedMovements = condenseMovements(recordedMovements);
+    onRecord(condensedMovements);
   };
 
   useEffect(() => {

@@ -3,35 +3,29 @@ import styled from 'styled-components';
 import soccerFieldBg from '../assets/soccer field background 1003.jpg';
 import soccerBall from '../assets/ball.svg';
 import SettingsMenu from './SettingsMenu';
-import PlaysList, { Play } from './PlaysList';
+import PlaysList, { Play, Position } from './PlaysList';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { default442Positions } from '../utils/formations';
 import { useRecording } from '../hooks/useRecording';
 import { usePlayback } from '../hooks/usePlayback';
 
-const FieldContainer = styled.div`
+const MainContainer = styled.div`
   position: relative;
   width: 100%;
   height: 100%;
-  background-image: url(${soccerFieldBg});
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
+  display: flex;
+`;
+
+const FieldContainer = styled.div<{ menuOpen: boolean }>`
+  position: relative;
+  width: ${props => props.menuOpen ? 'calc(100% - 400px)' : '100%'};
+  height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-`;
-
-const Canvas = styled.canvas`
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-  pointer-events: auto;
-  background-image: url(${soccerFieldBg});
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-color: #2c3e50;
+  margin-left: ${props => props.menuOpen ? '400px' : '0'};
+  transition: width 0.3s ease-in-out, margin-left 0.3s ease-in-out;
 `;
 
 const FieldContent = styled.div`
@@ -41,6 +35,18 @@ const FieldContent = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
+  background-image: url(${soccerFieldBg});
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+`;
+
+const Canvas = styled.canvas`
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: auto;
   background-image: url(${soccerFieldBg});
   background-size: contain;
   background-position: center;
@@ -249,13 +255,12 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
   const [storedHomeTeam, setStoredHomeTeam] = useLocalStorage<PlayerPosition[]>('homeTeam', homeTeam || []);
   const [storedAwayTeam, setStoredAwayTeam] = useLocalStorage<PlayerPosition[]>('awayTeam', awayTeam || []);
   const [plays, setPlays] = useLocalStorage<Play[]>('plays', []);
+  const [positions, setPositions] = useLocalStorage<Position[]>('positions', []);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const currentPlayRef = useRef<Play | null>(null);
   const isDraggingRef = useRef<{ type: 'player' | 'ball' | null; team: 'home' | 'away' | null; index: number | null }>({ type: null, team: null, index: null });
 
-
- 
   const { isRecording, startRecording, stopRecording } = useRecording({
     homeTeam: storedHomeTeam,
     awayTeam: storedAwayTeam,
@@ -336,19 +341,34 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
         canvasRef.current.height = height;
 
         setFieldSize({ width, height });
-        drawField();
       }
     };
+
+    const handleTransitionEnd = () => {
+      updateFieldSize();
+      drawField();
+    };
+
+    const fieldContainer = document.querySelector('.field-container');
+    if (fieldContainer) {
+      fieldContainer.addEventListener('transitionend', handleTransitionEnd);
+    }
 
     window.addEventListener('resize', updateFieldSize);
     updateFieldSize();
 
-    return () => window.removeEventListener('resize', updateFieldSize);
-  }, [imageSize]);
+    return () => {
+      window.removeEventListener('resize', updateFieldSize);
+      if (fieldContainer) {
+        fieldContainer.removeEventListener('transitionend', handleTransitionEnd);
+      }
+    };
+  }, [imageSize, isPlaysOpen]);
 
+  // Separate effect for drawing the field
   useEffect(() => {
     drawField();
-  }, [storedHomeTeam, storedAwayTeam, localBallPosition, currentSettings, fieldSize]);
+  }, [fieldSize, storedHomeTeam, storedAwayTeam, localBallPosition, currentSettings]);
 
   const drawField = () => {
     const canvas = canvasRef.current;
@@ -619,14 +639,45 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     }
   };
 
+  const handleSavePosition = (name: string, type: 'home' | 'away' | 'both') => {
+    const newPosition: Position = {
+      id: Date.now().toString(),
+      name,
+      description: `Saved on ${new Date().toLocaleString()}`,
+      homeTeam: type === 'away' ? [] : [...storedHomeTeam],
+      awayTeam: type === 'home' ? [] : [...storedAwayTeam],
+      type
+    };
+
+    setPositions((prev) => [...prev, newPosition]);
+  };
+
+  const handlePositionSelect = (position: Position) => {
+    if (position.type === 'home' || position.type === 'both') {
+      setStoredHomeTeam([...position.homeTeam]);
+      position.homeTeam.forEach((pos, index) => onPlayerMove('home', index, pos));
+    }
+    if (position.type === 'away' || position.type === 'both') {
+      setStoredAwayTeam([...position.awayTeam]);
+      position.awayTeam.forEach((pos, index) => onPlayerMove('away', index, pos));
+    }
+  };
+
+  const handlePositionDelete = (positionId: string) => {
+    setPositions((prev) => prev.filter(position => position.id !== positionId));
+  };
+
   return (
-    <>
+    <MainContainer>
       <PlaysList
         isOpen={isPlaysOpen}
         onToggle={() => setIsPlaysOpen(!isPlaysOpen)}
         plays={plays}
+        positions={positions}
         onPlaySelect={handlePlaySelect}
+        onPositionSelect={handlePositionSelect}
         onPlayDelete={handlePlayDelete}
+        onPositionDelete={handlePositionDelete}
         onDeleteAll={handleDeleteAllPlays}
         onPlaybackControl={handlePlaybackControl}
         isPlaying={isPlaying}
@@ -635,7 +686,27 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
         currentIndex={currentIndex}
         totalNumberOfPlays={totalNumberOfPlays}
         playbackSpeed={playbackSpeed}
+        onSavePosition={handleSavePosition}
+        homeColor={currentSettings.homeColor}
+        awayColor={currentSettings.awayColor}
       />
+      <FieldContainer menuOpen={isPlaysOpen} className="field-container">
+        <FieldContent>
+          <Canvas 
+            id="soccer-field"
+            ref={canvasRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          />
+          <Attribution>
+            <AttributionLink href="https://www.freepik.com/free-vector/soccer-field-background_1003.htm" target="_blank" rel="noopener noreferrer">
+              Soccer field background by Freepik
+            </AttributionLink>
+          </Attribution>
+        </FieldContent>
+      </FieldContainer>
       <SettingsButton onClick={() => setIsMenuOpen(true)}>
         ⚙️
       </SettingsButton>
@@ -660,21 +731,7 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
           onRestoreDefaults={handleRestoreDefaults}
         />
       )}
-      <FieldContainer>
-        <Canvas id="soccer-field"
-          ref={canvasRef}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        />
-        <Attribution>
-          <AttributionLink href="https://www.freepik.com/free-vector/soccer-field-background_1003.htm" target="_blank" rel="noopener noreferrer">
-            Soccer field background by Freepik
-          </AttributionLink>
-        </Attribution>
-      </FieldContainer>
-    </>
+    </MainContainer>
   );
 };
 
