@@ -1,0 +1,39 @@
+{
+  "name": "myownsoccertactics",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "vitest run",
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "check": "npm run typecheck && npm run test && npm run build && npm run e2e"
+  },
+  "type": "module",
+  "dependencies": {
+    "jszip": "^3.10.2",
+    "konva": "^10.9.1",
+    "pinia": "^4.1.0",
+    "vue": "^3.5.45",
+    "vue-konva": "^4.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^22.20.5",
+    "@vitejs/plugin-vue": "^6.0.11",
+    "jsdom": "^31.0.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1",
+    "vue-tsc": "^3.3.14"
+  },
+  "private": true,
+  "engines": {
+    "node": "^24.15.0 || >=26.0.0"
+  },
+  "allowScripts": {
+    "fsevents": false
+  }
+}
