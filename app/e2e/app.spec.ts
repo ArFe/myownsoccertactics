@@ -240,3 +240,47 @@ test('downloads the board as a PNG and all boards as a zip', async ({ page }) =>
   const zipBytes = await readFile(await zip.path());
   expect(zipBytes.subarray(0, 2).toString()).toBe('PK');
 });
+
+test('saves starting positions and loads them on another board, even after a reload', async ({ page }) => {
+  const gk = (await state(page)).board.players[0]!;
+  await dragWorld(page, [gk.x, gk.y], [gk.x + 20, gk.y]);
+  const moved = (await state(page)).board.players[0]!;
+
+  // Dragging selected the keeper, which opened the Selection tab.
+  await page.getByRole('tab', { name: 'Teams' }).click();
+  const card = page.getByTestId('positions');
+  await card.getByLabel('Save current positions as').fill('Build-up shape');
+  await card.getByRole('group', { name: 'Teams to save' }).getByRole('button', { name: 'Home' }).click();
+  await card.getByRole('button', { name: 'Save positions' }).click();
+  await expect(page.getByText('Saved "Build-up shape".')).toBeVisible();
+
+  await page.waitForTimeout(700); // autosave
+  await page.reload();
+  await page.getByRole('button', { name: 'New 11v11 board' }).click();
+  await page.getByRole('tab', { name: 'Teams' }).click();
+
+  // Home onto Home: the keeper goes back where it was saved.
+  await expect(card.getByLabel('Saved positions', { exact: true })).toContainText('Build-up shape · home · 11 players · ball');
+  await expect(card.getByLabel('Also move the ball')).toBeChecked();
+  await card.getByRole('button', { name: 'Load positions' }).click();
+  let { board } = await state(page);
+  expect(board.players.find((p) => p.team === 'home')!.x).toBeCloseTo(moved.x, 1);
+  expect(board.teams.home.formation).toBe('Build-up shape');
+  await expect(page.locator('[data-testid="team-home"] select')).toHaveValue('Build-up shape');
+
+  // Home onto Away: turned around.
+  await card.getByRole('group', { name: 'Load onto' }).getByRole('button', { name: 'Away' }).click();
+  await card.getByRole('button', { name: 'Load positions' }).click();
+  ({ board } = await state(page));
+  const awayGk = board.players.find((p) => p.team === 'away')!;
+  expect(awayGk.x).toBeCloseTo(105 - moved.x, 1);
+
+  // The ball was saved too, and turned with the team.
+  expect(board.ball.x).toBeCloseTo(105 - 52.5, 1);
+  expect(board.ball.visible).toBe(true);
+
+  // Undo brings the away team back.
+  await page.getByRole('button', { name: 'Undo' }).click();
+  ({ board } = await state(page));
+  expect(board.players.find((p) => p.team === 'away')!.x).toBeGreaterThan(95);
+});

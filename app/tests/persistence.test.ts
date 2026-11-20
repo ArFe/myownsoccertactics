@@ -56,8 +56,10 @@ describe('parseSave', () => {
     b.field.grassColor = '#123456';
     delete b.field.surfaceColor;
     const v1 = { ...v2, version: 1 };
+    delete (v1 as Record<string, unknown>).savedPositions;
     const out = parseSave(JSON.stringify(v1));
-    expect(out.version).toBe(2);
+    expect(out.version).toBe(3); // upgraded through every step
+    expect(out.savedPositions).toEqual([]);
     expect(out.boards[0]!.sport).toBe('soccer');
     expect(out.boards[0]!.field.surfaceColor).toBe('#123456');
     expect('grassColor' in out.boards[0]!.field).toBe(false);
@@ -74,6 +76,33 @@ describe('parseSave', () => {
     expect(out.sport).toBe('soccer');
     expect(out.field.preset).toBe('11v11');
     expect(out.field.markings).not.toHaveProperty('hogLine');
+  });
+
+  it('upgrades a version 2 save: it gets an empty list of saved positions', () => {
+    const v2 = { ...createSave(), version: 2 } as Record<string, unknown>;
+    delete v2.savedPositions;
+    const out = parseSave(JSON.stringify(v2));
+    expect(out.version).toBe(3);
+    expect(out.savedPositions).toEqual([]);
+  });
+
+  it('reads saved positions and repairs or drops bad ones', () => {
+    const save = createSave() as unknown as Record<string, any>;
+    save.savedPositions = [
+      { id: 's1', name: 'Shape', sport: 'soccer', home: [{ fx: 0.1, fy: 0.5, number: 1, name: 'Keller', role: 'GK' }], ball: { fx: 3, fy: 0.5 } },
+      { id: 's2', name: 'Far out', sport: 'curling', away: [{ fx: 9, fy: -9, number: 'x' }] },
+      { id: 's3', name: 'Empty', home: [] },
+      { id: 's1', name: 'Same id', home: [{ fx: 0.2, fy: 0.2 }] },
+      'junk',
+    ];
+    const out = parseSave(JSON.stringify(save)).savedPositions;
+    expect(out.map((s) => s.name)).toEqual(['Shape', 'Far out', 'Same id']);
+    expect(out[0]!.home![0]).toEqual({ fx: 0.1, fy: 0.5, number: 1, name: 'Keller', role: 'GK' });
+    expect(out[0]!.ball).toEqual({ fx: 1.5, fy: 0.5 });
+    expect(out[1]!.ball).toBeUndefined();
+    expect(out[1]!.sport).toBe('soccer');
+    expect(out[1]!.away![0]).toMatchObject({ fx: 1.5, fy: -0.5, number: 1 });
+    expect(new Set(out.map((s) => s.id)).size).toBe(3);
   });
 
   it('keeps a custom preset', () => {

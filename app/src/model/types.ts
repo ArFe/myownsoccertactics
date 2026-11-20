@@ -122,8 +122,33 @@ export const APP_ID = 'myownsoccertactics';
  * Version history:
  * 1. First version (soccer only).
  * 2. Boards have a `sport`; `field.grassColor` became `field.surfaceColor`.
+ * 3. Saves have `savedPositions` (named starting positions).
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
+
+/**
+ * One player's place in a saved set. fx and fy are fractions of the field
+ * (0 to 1, a little more in the run-off), so a set fits any field size.
+ */
+export interface SavedSpot {
+  fx: number;
+  fy: number;
+  number: number;
+  name: string;
+  role: string;
+}
+
+/** Named starting positions for one or both teams, reusable on any board of the same sport. */
+export interface SavedPositions {
+  id: string;
+  name: string;
+  sport: SportId;
+  home?: SavedSpot[];
+  away?: SavedSpot[];
+  /** Where the ball was, as fractions of the field. */
+  ball?: { fx: number; fy: number };
+  createdAt: string;
+}
 
 export interface SaveFile {
   app: typeof APP_ID;
@@ -131,5 +156,6 @@ export interface SaveFile {
   name: string;
   activeBoardId: string;
   boards: Board[];
+  savedPositions: SavedPositions[];
   updatedAt: string;
 }

@@ -9,6 +9,10 @@ A web app to draw and explain soccer tactics. It runs fully in the browser.
 - Arrows for passes and runs, text notes, cones and the ball.
 - One save holds many boards. It is kept in the browser and can be
   downloaded or uploaded as a `.json` file.
+- Save the players' places as named starting positions (one team or both),
+  and load them onto any board of the same sport. They are kept as fractions
+  of the field, so they fit any field size; a home set loaded onto the away
+  team is turned around. The ball is saved and loaded with them.
 - Download a board as a PNG, or all boards as a zip of PNGs.
 
 ## Run it locally

@@ -4,6 +4,7 @@ import { cloneBoardWithNewIds, createBoard, deepCopy, newId, nowIso, playersInFo
 import { clampSize, createField, presetDef } from '@/model/field';
 import { getFormation } from '@/model/formations';
 import { getSport } from '@/model/sports';
+import { applyPositions, capturePositions, type PositionTarget } from '@/model/positions';
 import type { SportDefinition } from '@/model/sports/types';
 import { clampToField, round, scaleBoardContents, tidy } from '@/model/geometry';
 import { createHistory } from '@/model/history';
@@ -46,7 +47,7 @@ function storage(): Storage | undefined {
 
 /** What undo/redo tracks: everything except which board is open. */
 function snapshotOf(save: SaveFile): string {
-  return JSON.stringify({ name: save.name, boards: save.boards });
+  return JSON.stringify({ name: save.name, boards: save.boards, savedPositions: save.savedPositions });
 }
 
 export const useSaveStore = defineStore('save', () => {
@@ -89,9 +90,10 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   function applySnapshot(snapshot: string): void {
-    const data = JSON.parse(snapshot) as Pick<SaveFile, 'name' | 'boards'>;
+    const data = JSON.parse(snapshot) as Pick<SaveFile, 'name' | 'boards' | 'savedPositions'>;
     save.value.name = data.name;
     save.value.boards = data.boards;
+    save.value.savedPositions = data.savedPositions;
     if (!data.boards.some((b) => b.id === save.value.activeBoardId)) {
       save.value.activeBoardId = data.boards[0]!.id;
     }
@@ -193,10 +195,52 @@ export const useSaveStore = defineStore('save', () => {
       const added = incoming.boards.map((b) => cloneBoardWithNewIds(b));
       save.value.boards.push(...added);
       save.value.activeBoardId = added[0]!.id;
+      // Saved positions come along; uploading the same file twice does not repeat them.
+      const have = new Set(save.value.savedPositions.map((s) => s.id));
+      save.value.savedPositions.push(...deepCopy(incoming.savedPositions.filter((s) => !have.has(s.id))));
     }
     selection.value = null;
     commit();
     return incoming.boards.length;
+  }
+
+  // ----- saved starting positions -----
+  /** Saved sets of the open board's sport, newest first. */
+  const positionSets = computed(() =>
+    save.value.savedPositions.filter((s) => s.sport === board.value.sport).slice().reverse(),
+  );
+
+  function savePositions(name: string, sides: TeamSide[], withBall = true): string | null {
+    const clean = name.trim();
+    if (!clean || sides.length === 0) return null;
+    const set = capturePositions(board.value, sides, clean, withBall);
+    save.value.savedPositions.push(set);
+    commit();
+    return set.id;
+  }
+
+  function loadPositions(
+    setId: string,
+    targets: PositionTarget[],
+    options: { withNames: boolean; withBall: boolean } = { withNames: false, withBall: true },
+  ): void {
+    const set = save.value.savedPositions.find((s) => s.id === setId);
+    if (!set || set.sport !== board.value.sport) return;
+    changeBoard((b) => applyPositions(b, set, targets, { ...options, runoff: sport.value.runoff(b.field) }));
+    if (selection.value?.kind === 'player' && !findSelected()) selection.value = null;
+  }
+
+  function renamePositions(setId: string, name: string): void {
+    const set = save.value.savedPositions.find((s) => s.id === setId);
+    if (!set || !name.trim()) return;
+    set.name = name;
+    commit(`positions-name-${setId}`);
+  }
+
+  function deletePositions(setId: string): void {
+    const before = save.value.savedPositions.length;
+    save.value.savedPositions = save.value.savedPositions.filter((s) => s.id !== setId);
+    if (save.value.savedPositions.length !== before) commit();
   }
 
   // ----- field -----
@@ -475,6 +519,11 @@ export const useSaveStore = defineStore('save', () => {
     moveBoard,
     renameBoard,
     importSave,
+    positionSets,
+    savePositions,
+    loadPositions,
+    renamePositions,
+    deletePositions,
     setPreset,
     setFieldSize,
     updateField,

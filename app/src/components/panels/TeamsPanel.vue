@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useSaveStore } from '@/stores/save';
-import { formationGroups } from '@/model/formations';
+import { formationGroups, getFormation } from '@/model/formations';
+import PositionsCard from './PositionsCard.vue';
 import type { TeamSide } from '@/model/types';
 import { toColorInput } from '@/utils/color';
 
@@ -36,6 +37,7 @@ function onNumber(id: string, e: Event): void {
 
 <template>
   <div class="stack teams">
+    <PositionsCard />
     <section v-for="{ side, label } in SIDES" :key="side" class="card" :data-testid="`team-${side}`">
       <div class="team-head">
         <span class="team-dot" :style="{ background: store.board.teams[side].shirtColor }" />
@@ -92,6 +94,14 @@ function onNumber(id: string, e: Event): void {
             :value="store.board.teams[side].formation"
             @change="store.applyFormation(side, ($event.target as HTMLSelectElement).value)"
           >
+            <!-- After loading saved positions the team shows that set's name. -->
+            <option
+              v-if="!getFormation(store.sport, store.board.teams[side].formation)"
+              :value="store.board.teams[side].formation"
+              disabled
+            >
+              {{ store.board.teams[side].formation }} (saved positions)
+            </option>
             <optgroup v-for="g in groups" :key="g.label" :label="g.label">
               <option v-for="f in g.items" :key="f.name" :value="f.name">{{ f.name }}</option>
             </optgroup>
