@@ -4,6 +4,7 @@ import { cloneBoardWithNewIds, createBoard, deepCopy, newId, nowIso, playersInFo
 import { clampSize, createField, presetDef } from '@/model/field';
 import { getFormation } from '@/model/formations';
 import { getSport } from '@/model/sports';
+import { BALL_STYLES, defaultBallColors, type BallStyleId, type SizeId } from '@/model/balls';
 import { applyPositions, capturePositions, type PositionTarget } from '@/model/positions';
 import type { SportDefinition } from '@/model/sports/types';
 import { clampToField, round, scaleBoardContents, tidy } from '@/model/geometry';
@@ -338,6 +339,28 @@ export const useSaveStore = defineStore('save', () => {
     changeBoard((b) => (b.ball.visible = on));
   }
 
+  /** A new style starts with its own default colours. */
+  function setBallStyle(style: BallStyleId): void {
+    if (!BALL_STYLES[style]) return;
+    changeBoard((b) => {
+      b.ball.style = style;
+      b.ball.colors = defaultBallColors(style);
+    });
+  }
+
+  function setBallColor(key: string, value: string): void {
+    if (!BALL_STYLES[board.value.ball.style].colors.some((c) => c.key === key)) return;
+    changeBoard((b) => (b.ball.colors[key] = value), `ball-color-${key}`);
+  }
+
+  function setBallSize(size: SizeId): void {
+    changeBoard((b) => (b.ball.size = size));
+  }
+
+  function setPlayerSize(size: SizeId): void {
+    changeBoard((b) => (b.playerSize = size));
+  }
+
   // ----- areas -----
   function addArea(input: Pick<Area, 'shape'> & Partial<Pick<Area, 'x' | 'y' | 'w' | 'h' | 'points'>>): string {
     const id = newId('a');
@@ -535,6 +558,10 @@ export const useSaveStore = defineStore('save', () => {
     movePlayer,
     moveBall,
     setBallVisible,
+    setBallStyle,
+    setBallColor,
+    setBallSize,
+    setPlayerSize,
     addArea,
     updateArea,
     moveAreaBy,

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createSave } from '@/model/factory';
+import { SAVE_VERSION } from '@/model/types';
 import { BROKEN_KEY, STORAGE_KEY, SaveFormatError, loadFromStorage, parseSave, serializeSave, writeToStorage } from '@/model/persistence';
 
 describe('parseSave', () => {
@@ -58,7 +59,7 @@ describe('parseSave', () => {
     const v1 = { ...v2, version: 1 };
     delete (v1 as Record<string, unknown>).savedPositions;
     const out = parseSave(JSON.stringify(v1));
-    expect(out.version).toBe(3); // upgraded through every step
+    expect(out.version).toBe(SAVE_VERSION); // upgraded through every step
     expect(out.savedPositions).toEqual([]);
     expect(out.boards[0]!.sport).toBe('soccer');
     expect(out.boards[0]!.field.surfaceColor).toBe('#123456');
@@ -82,7 +83,7 @@ describe('parseSave', () => {
     const v2 = { ...createSave(), version: 2 } as Record<string, unknown>;
     delete v2.savedPositions;
     const out = parseSave(JSON.stringify(v2));
-    expect(out.version).toBe(3);
+    expect(out.version).toBe(SAVE_VERSION);
     expect(out.savedPositions).toEqual([]);
   });
 
@@ -103,6 +104,36 @@ describe('parseSave', () => {
     expect(out[1]!.sport).toBe('soccer');
     expect(out[1]!.away![0]).toMatchObject({ fx: 1.5, fy: -0.5, number: 1 });
     expect(new Set(out.map((s) => s.id)).size).toBe(3);
+  });
+
+  it('upgrades a version 3 save: medium players and a medium soccer ball', () => {
+    const v3 = createSave() as unknown as Record<string, any>;
+    v3.version = 3;
+    delete v3.boards[0].playerSize;
+    v3.boards[0].ball = { x: 10, y: 20, visible: true };
+    const b = parseSave(JSON.stringify(v3)).boards[0]!;
+    expect(b.playerSize).toBe('m');
+    expect(b.ball).toEqual({
+      x: 10, y: 20, visible: true, style: 'soccer', size: 'm',
+      colors: { body: '#FFFFFF', patches: '#111827' },
+    });
+  });
+
+  it('reads the ball look and repairs bad values', () => {
+    const save = createSave() as unknown as Record<string, any>;
+    save.boards[0].playerSize = 'huge';
+    save.boards[0].ball = {
+      x: 1, y: 2, visible: true, style: 'volleyball', size: 'xl',
+      colors: { panel1: '#FFFFFF', panel2: 'url(x)', patches: '#000000' },
+    };
+    const b = parseSave(JSON.stringify(save)).boards[0]!;
+    expect(b.playerSize).toBe('m');
+    expect(b.ball.style).toBe('volleyball');
+    expect(b.ball.size).toBe('xl');
+    // Bad colours get the default; slots of other styles are dropped.
+    expect(b.ball.colors).toEqual({ panel1: '#FFFFFF', panel2: '#1E5AA8', panel3: '#FFD23F' });
+    save.boards[0].ball.style = 'rugby';
+    expect(parseSave(JSON.stringify(save)).boards[0]!.ball.style).toBe('soccer');
   });
 
   it('keeps a custom preset', () => {

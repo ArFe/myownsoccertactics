@@ -88,7 +88,8 @@ export function applyPositions(board: Board, set: SavedPositions, targets: Posit
     const fx = turn ? 1 - set.ball.fx : set.ball.fx;
     const fy = turn ? 1 - set.ball.fy : set.ball.fy;
     const at = clampToField(board.field, runoff, fx * board.field.length, fy * board.field.width);
-    board.ball = { x: tidy(at.x), y: tidy(at.y), visible: true };
+    // Only the place changes; the ball keeps its style, colours and size.
+    Object.assign(board.ball, { x: tidy(at.x), y: tidy(at.y), visible: true });
   }
   for (const { from, to } of targets) {
     const spots = set[from];

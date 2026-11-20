@@ -3,6 +3,7 @@ import { SPORTS, SPORT_IDS, getSport } from '@/model/sports';
 import { createField } from '@/model/field';
 import { getFormation } from '@/model/formations';
 import { createBoard } from '@/model/factory';
+import { BALL_STYLES } from '@/model/balls';
 
 // Rules every sport definition must follow. Adding a sport to SPORTS runs it
 // through all of these.
@@ -67,6 +68,11 @@ describe.each(SPORT_IDS.map((id) => [id, SPORTS[id]] as const))('sport: %s', (id
         });
       }
     }
+  });
+
+  it('starts boards with a ball style that exists', () => {
+    expect(BALL_STYLES[sport.ballStyle]).toBeDefined();
+    expect(createBoard(id).ball.style).toBe(sport.ballStyle);
   });
 
   it('makes a board for every preset', () => {

@@ -1,3 +1,7 @@
+import type { BallStyleId, SizeId } from './balls';
+
+export type { BallStyleId, SizeId };
+
 // All positions are in metres. (0, 0) is the top-left corner of the field
 // when it is drawn horizontally; x runs along the length, y across the width.
 // The home team attacks towards x = length.
@@ -48,6 +52,10 @@ export interface Ball {
   x: number;
   y: number;
   visible: boolean;
+  style: BallStyleId;
+  /** One colour per colour slot of the style, by slot key. */
+  colors: Record<string, string>;
+  size: SizeId;
 }
 
 export type AreaShape = 'rect' | 'ellipse' | 'polygon';
@@ -109,6 +117,8 @@ export interface Board {
   field: FieldSettings;
   teams: Record<TeamSide, Team>;
   players: Player[];
+  /** One size for every player on the board. */
+  playerSize: SizeId;
   ball: Ball;
   areas: Area[];
   arrows: Arrow[];
@@ -123,8 +133,9 @@ export const APP_ID = 'myownsoccertactics';
  * 1. First version (soccer only).
  * 2. Boards have a `sport`; `field.grassColor` became `field.surfaceColor`.
  * 3. Saves have `savedPositions` (named starting positions).
+ * 4. Boards have `playerSize`; the ball has `style`, `colors` and `size`.
  */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /**
  * One player's place in a saved set. fx and fy are fractions of the field

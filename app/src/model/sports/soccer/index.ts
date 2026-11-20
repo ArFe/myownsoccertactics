@@ -12,4 +12,5 @@ export const SOCCER: SportDefinition = {
   surface: { label: 'Grass', color: '#2E7D43', lineColor: '#FFFFFF' },
   drawField: drawSoccerField,
   formations: SOCCER_FORMATIONS,
+  ballStyle: 'soccer',
 };

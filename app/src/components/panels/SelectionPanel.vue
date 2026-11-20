@@ -4,6 +4,7 @@ import { AREA_COLORS, useSaveStore } from '@/stores/save';
 import type { Area, AreaBorder, AreaLabel, Arrow, ArrowKind, Cone, Player, TextNote } from '@/model/types';
 import { toColorInput } from '@/utils/color';
 import Icon from '../Icon.vue';
+import BallSettings from './BallSettings.vue';
 
 const store = useSaveStore();
 const nameInput = ref<HTMLInputElement | null>(null);
@@ -235,6 +236,7 @@ defineExpose({ focusName });
     <template v-else-if="kind === 'ball'">
       <h3 class="section-title">Ball</h3>
       <p class="hint">Drag the ball to move it, or pick the Ball tool and click on the field.</p>
+      <BallSettings />
       <div class="actions">
         <button type="button" class="btn danger" @click="store.deleteSelected()">Hide ball</button>
       </div>
