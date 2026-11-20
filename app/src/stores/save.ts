@@ -9,6 +9,7 @@ import { applyPositions, capturePositions, type PositionTarget } from '@/model/p
 import type { SportDefinition } from '@/model/sports/types';
 import { clampToField, round, scaleBoardContents, tidy } from '@/model/geometry';
 import { createHistory } from '@/model/history';
+import { MAX_SUBS, MAX_WAVES, createSub, createWave, tidySubs } from '@/model/gameDay';
 import {
   MAX_PLAYS,
   MAX_STEPS,
@@ -32,6 +33,9 @@ import type {
   PlayStep,
   Player,
   SaveFile,
+  Sub,
+  SubsShown,
+  SubWave,
   Team,
   TeamSide,
   TextNote,
@@ -131,6 +135,8 @@ export const useSaveStore = defineStore('save', () => {
     playTime.value = null;
     const b = board.value;
     fn(b);
+    // A sub whose player left (smaller team, new preset) goes with them.
+    tidySubs(b);
     b.updatedAt = nowIso();
     commit(mergeKey);
   }
@@ -538,6 +544,76 @@ export const useSaveStore = defineStore('save', () => {
     changeBoard((b) => (b.playerSize = size));
   }
 
+  // ----- game day and substitutes -----
+  /** Game day shows only our team: the other one is hidden, and shown again after. */
+  function setGameDay(on: boolean): void {
+    changeBoard((b) => {
+      b.gameDay.on = on;
+      const other = b.gameDay.team === 'home' ? 'away' : 'home';
+      b.teams[b.gameDay.team].visible = true;
+      b.teams[other].visible = !on;
+    });
+  }
+
+  function setGameDayTeam(team: TeamSide): void {
+    changeBoard((b) => {
+      b.gameDay.team = team;
+      if (!b.gameDay.on) return;
+      b.teams[team].visible = true;
+      b.teams[team === 'home' ? 'away' : 'home'].visible = false;
+    });
+  }
+
+  function setSubsShown(mode: SubsShown): void {
+    changeBoard((b) => (b.gameDay.subsShown = mode));
+  }
+
+  function addWave(): string | null {
+    if (board.value.waves.length >= MAX_WAVES) return null;
+    const wave = createWave(board.value);
+    changeBoard((b) => b.waves.push(wave));
+    return wave.id;
+  }
+
+  function updateWave(id: string, patch: Partial<Omit<SubWave, 'id'>>): void {
+    changeBoard((b) => {
+      const w = b.waves.find((x) => x.id === id);
+      if (!w) return;
+      if (patch.color) w.color = patch.color;
+      if (patch.minute !== undefined && Number.isFinite(patch.minute)) {
+        w.minute = Math.round(Math.min(150, Math.max(0, patch.minute)));
+      }
+    }, `wave-${id}-${Object.keys(patch).join()}`);
+  }
+
+  /** Subs in a deleted wave stay, with no wave. */
+  function deleteWave(id: string): void {
+    changeBoard((b) => (b.waves = b.waves.filter((w) => w.id !== id)));
+  }
+
+  function addSub(replacesId: string): string | null {
+    const player = board.value.players.find((p) => p.id === replacesId);
+    if (!player || board.value.subs.length >= MAX_SUBS) return null;
+    const sub = createSub(board.value, player);
+    changeBoard((b) => b.subs.push(sub));
+    return sub.id;
+  }
+
+  function updateSub(id: string, patch: Partial<Omit<Sub, 'id'>>): void {
+    changeBoard((b) => {
+      const sub = b.subs.find((x) => x.id === id);
+      if (!sub) return;
+      if (patch.replaces && !b.players.some((p) => p.id === patch.replaces)) return;
+      if (patch.waveId && !b.waves.some((w) => w.id === patch.waveId)) return;
+      if (patch.number !== undefined && !(Number.isInteger(patch.number) && patch.number >= 0 && patch.number <= 999)) return;
+      Object.assign(sub, patch);
+    }, `sub-${id}-${Object.keys(patch).join()}`);
+  }
+
+  function deleteSub(id: string): void {
+    changeBoard((b) => (b.subs = b.subs.filter((s) => s.id !== id)));
+  }
+
   // ----- areas -----
   function addArea(input: Pick<Area, 'shape'> & Partial<Pick<Area, 'x' | 'y' | 'w' | 'h' | 'points'>>): string {
     const id = newId('a');
@@ -751,6 +827,15 @@ export const useSaveStore = defineStore('save', () => {
     setBallColor,
     setBallSize,
     setPlayerSize,
+    setGameDay,
+    setGameDayTeam,
+    setSubsShown,
+    addWave,
+    updateWave,
+    deleteWave,
+    addSub,
+    updateSub,
+    deleteSub,
     openPlayById,
     createPlay,
     renamePlay,

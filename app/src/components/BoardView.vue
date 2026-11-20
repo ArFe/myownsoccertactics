@@ -95,6 +95,15 @@ defineExpose({
         </button>
         <button type="button" class="btn icon" aria-label="Zoom in" :disabled="zoom >= maxZoom" @click="zoomBy(1)">+</button>
       </div>
+      <button
+        type="button"
+        class="btn"
+        :aria-pressed="store.board.gameDay.on"
+        title="Only our team, its subs and when they come on"
+        @click="store.setGameDay(!store.board.gameDay.on)"
+      >
+        Game day: {{ store.board.gameDay.on ? 'on' : 'off' }}
+      </button>
       <button type="button" class="btn" :aria-pressed="namesOn" @click="store.setNamesVisible(!namesOn)">
         Names: {{ namesOn ? 'on' : 'off' }}
       </button>

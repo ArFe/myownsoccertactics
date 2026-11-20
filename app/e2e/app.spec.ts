@@ -483,3 +483,43 @@ test('puts the board name as a title on the PNG when asked, and remembers it', a
   await page.getByRole('button', { name: 'PNG options' }).click();
   await expect(page.getByLabel('Board name as a title')).toBeChecked();
 });
+
+test('game day: one team, times with colours, subs on the bench and in the PNG', async ({ page }) => {
+  const canvasHeight = async () => (await page.locator('[data-testid="pitch"] .konvajs-content').boundingBox())!.height;
+  const before = await canvasHeight();
+  await page.getByRole('button', { name: 'Game day: off' }).click();
+  let { board } = await state(page);
+  expect(board.gameDay.on).toBe(true);
+  expect(board.teams.away.visible).toBe(false);
+  // The bench sits under the field.
+  expect(await canvasHeight()).toBeGreaterThan(before - 1);
+
+  const card = page.getByTestId('game-day');
+  await card.getByRole('button', { name: 'Add a time' }).click();
+  await card.getByLabel('Minute of time 1').fill('20');
+  await card.getByLabel('Minute of time 1').press('Tab');
+  await card.getByRole('button', { name: 'Add a sub' }).click();
+  const sub = card.getByTestId('sub-12');
+  await sub.getByLabel('Sub name').fill('Ana');
+  await sub.getByLabel('Comes on for').selectOption({ label: 'for 9' });
+  await sub.getByLabel('Time').selectOption({ label: "20'" });
+  await card.getByRole('group', { name: 'Show subs' }).getByRole('button', { name: 'Both' }).click();
+
+  ({ board } = await state(page));
+  const nine = board.players.find((p) => p.team === 'home' && p.number === 9)!;
+  expect(board.waves).toMatchObject([{ minute: 20 }]);
+  expect(board.subs).toMatchObject([{ number: 12, name: 'Ana', replaces: nine.id, waveId: board.waves[0]!.id }]);
+  expect(board.gameDay.subsShown).toBe('both');
+
+  // The PNG has the bench too: taller than the field alone.
+  const pngHeight = async () => {
+    const [d] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download PNG' }).click()]);
+    return pngSize(await readFile((await d.path())!)).height;
+  };
+  const withBench = await pngHeight();
+  await page.getByRole('button', { name: 'Game day: on' }).click();
+  ({ board } = await state(page));
+  expect(board.teams.away.visible).toBe(true);
+  expect(board.subs).toHaveLength(1); // the plan is kept
+  expect(withBench).toBeGreaterThan(await pngHeight());
+});

@@ -2,10 +2,11 @@ import { BALL_STYLES, BALL_STYLE_IDS, SIZE_IDS } from './balls';
 import { createBoard, createSave, nowIso } from './factory';
 import { clampSize, isKnownPreset } from './field';
 import { MAX_PLAYS, MAX_STEPS, STEP_SECONDS, clampSeconds } from './plays';
+import { MAX_SUBS, MAX_WAVES } from './gameDay';
 import { DEFAULT_SPORT, SPORT_IDS, getSport } from './sports';
 import type { SportDefinition } from './sports/types';
 import { APP_ID, SAVE_VERSION } from './types';
-import type { Area, Arrow, Board, Cone, FieldSettings, Play, PlayStep, Player, SaveFile, SavedPositions, SavedSpot, Team, TeamSide, TextNote } from './types';
+import type { Area, Arrow, Board, Cone, FieldSettings, GameDay, Play, PlayStep, Player, SaveFile, Sub, SubWave, SavedPositions, SavedSpot, Team, TeamSide, TextNote } from './types';
 
 export const STORAGE_KEY = 'myownsoccertactics.save';
 export const BROKEN_KEY = 'myownsoccertactics.save.unreadable';
@@ -112,6 +113,44 @@ function readPlays(v: unknown, players: Player[], drawingIds: Set<string>, ball:
   return plays;
 }
 
+function readWaves(v: unknown): SubWave[] {
+  const seen = new Set<string>();
+  return list(v)
+    .slice(0, MAX_WAVES)
+    .map((w, j) => ({
+      id: id(w.id, 'w', j),
+      color: color(w.color, '#2563EB'),
+      minute: Math.round(Math.min(150, Math.max(0, num(w.minute, 60)))),
+    }))
+    .filter((w) => !seen.has(w.id) && !!seen.add(w.id));
+}
+
+/** Subs must replace a player on the board; a wave they name must exist. */
+function readSubs(v: unknown, players: Player[], waves: SubWave[]): Sub[] {
+  const playerIds = new Set(players.map((p) => p.id));
+  const waveIds = new Set(waves.map((w) => w.id));
+  const seen = new Set<string>();
+  return list(v)
+    .slice(0, MAX_SUBS)
+    .map((s, j) => ({
+      id: id(s.id, 'sb', j),
+      number: Math.round(Math.min(999, Math.max(0, num(s.number, 12 + j)))),
+      name: str(s.name, ''),
+      replaces: str(s.replaces, ''),
+      waveId: typeof s.waveId === 'string' && waveIds.has(s.waveId) ? s.waveId : null,
+    }))
+    .filter((s) => playerIds.has(s.replaces) && !seen.has(s.id) && !!seen.add(s.id));
+}
+
+function readGameDay(v: unknown, d: GameDay): GameDay {
+  if (!isObj(v)) return d;
+  return {
+    on: bool(v.on, d.on),
+    team: oneOf<TeamSide>(v.team, ['home', 'away'], d.team),
+    subsShown: oneOf(v.subsShown, ['bench', 'beside', 'both'] as const, d.subsShown),
+  };
+}
+
 function readBoard(v: Obj, i: number): Board {
   const sport = getSport(oneOf(v.sport, SPORT_IDS, DEFAULT_SPORT));
   const presetHint = isObj(v.field) && typeof v.field.preset === 'string' ? v.field.preset : undefined;
@@ -177,6 +216,7 @@ function readBoard(v: Obj, i: number): Board {
   const keptAreas = areas.filter((a) => a.shape !== 'polygon' || a.points.length >= 6);
   const readyBall = readBall(ball, d.ball, field);
   const drawings = new Set([...keptAreas, ...arrows, ...texts, ...cones].map((x) => x.id));
+  const waves = readWaves(v.waves);
 
   return {
     id: id(v.id, 'b', i),
@@ -192,6 +232,9 @@ function readBoard(v: Obj, i: number): Board {
     texts,
     cones,
     plays: readPlays(v.plays, players, drawings, readyBall),
+    subs: readSubs(v.subs, players, waves),
+    waves,
+    gameDay: readGameDay(v.gameDay, d.gameDay),
     updatedAt: str(v.updatedAt, nowIso()),
   };
 }
@@ -241,6 +284,16 @@ function v4ToV5(data: Obj): Obj {
   return { ...data, version: 5, boards };
 }
 
+/** Version 5 to 6: boards get subs, waves and game day settings (off). */
+function v5ToV6(data: Obj): Obj {
+  const boards = Array.isArray(data.boards)
+    ? data.boards.map((b: unknown) =>
+        isObj(b) ? { ...b, subs: [], waves: [], gameDay: { on: false, team: 'home', subsShown: 'bench' } } : b,
+      )
+    : data.boards;
+  return { ...data, version: 6, boards };
+}
+
 /** Upgrades older save files, one version at a time. */
 export function migrate(data: Obj, from: number): Obj {
   let out = data;
@@ -248,6 +301,7 @@ export function migrate(data: Obj, from: number): Obj {
   if (from < 3) out = v2ToV3(out);
   if (from < 4) out = v3ToV4(out);
   if (from < 5) out = v4ToV5(out);
+  if (from < 6) out = v5ToV6(out);
   return out;
 }
 

@@ -126,7 +126,39 @@ export interface Board {
   cones: Cone[];
   /** Named step-by-step moves of the players and the ball. */
   plays: Play[];
+  /** Players waiting to come on, each for one player on the field. */
+  subs: Sub[];
+  /** Substitution times, each with a colour. */
+  waves: SubWave[];
+  gameDay: GameDay;
   updatedAt: string;
+}
+
+export interface Sub {
+  id: string;
+  number: number;
+  name: string;
+  /** Id of the player on the field this sub comes on for. */
+  replaces: string;
+  /** The wave this sub comes on in, or null if not planned yet. */
+  waveId: string | null;
+}
+
+/** A substitution time: every sub in it, and who they replace, shows its colour. */
+export interface SubWave {
+  id: string;
+  color: string;
+  /** Match minute. */
+  minute: number;
+}
+
+export type SubsShown = 'bench' | 'beside' | 'both';
+
+/** Game day mode: only our team, its subs and the wave colours. */
+export interface GameDay {
+  on: boolean;
+  team: TeamSide;
+  subsShown: SubsShown;
 }
 
 /** A place on the field, in metres. */
@@ -162,8 +194,9 @@ export const APP_ID = 'myownsoccertactics';
  * 3. Saves have `savedPositions` (named starting positions).
  * 4. Boards have `playerSize`; the ball has `style`, `colors` and `size`.
  * 5. Boards have `plays` (steps of player and ball moves).
+ * 6. Boards have `subs`, `waves` and `gameDay`.
  */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 /**
  * One player's place in a saved set. fx and fy are fractions of the field

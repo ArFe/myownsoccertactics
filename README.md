@@ -16,6 +16,10 @@ A web app to draw and explain soccer tactics. It runs fully in the browser.
   and load them onto any board of the same sport. They are kept as fractions
   of the field, so they fit any field size; a home set loaded onto the away
   team is turned around. The ball is saved and loaded with them.
+- Game day: show only your team, with its subs on a bench under the field,
+  beside the player they replace, or both. Each substitution time has a
+  colour and a minute (blue 20', red 35'); the player coming off wears a
+  ring in that colour.
 - Plays: record named moves step by step (players and the ball), then play
   them back smoothly at 0.5×, 1× or 2×. Each step sets how long it takes
   to get there. Areas, arrows, notes and cones can show on some steps only;
