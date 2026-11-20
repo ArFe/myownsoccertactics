@@ -8,6 +8,9 @@ import BoardView from './components/BoardView.vue';
 import PropertiesPanel from './components/PropertiesPanel.vue';
 import SaveDialog from './components/SaveDialog.vue';
 import ExportHost from './components/ExportHost.vue';
+import { useFieldZoom } from './composables/zoom';
+
+const fieldZoom = useFieldZoom();
 
 const store = useSaveStore();
 const { toasts, dismiss } = useToasts();
@@ -71,6 +74,9 @@ function onKey(e: KeyboardEvent): void {
     store.deleteSelected();
     return;
   }
+  if (e.key === '+' || e.key === '=') return fieldZoom.zoomBy(1);
+  if (e.key === '-') return fieldZoom.zoomBy(-1);
+  if (e.key === '0') return fieldZoom.resetZoom();
   const tool = TOOL_KEYS[e.key.toLowerCase()];
   if (tool) store.tool = tool;
 }

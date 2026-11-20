@@ -251,9 +251,23 @@ function onArrowHandleDragEnd(r: Arrow, end: 0 | 1, e: KonvaEvent): void {
 }
 
 // ---------- texts, cones, ball, players ----------
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+/** Width of the widest line of `text` in pixels, or null where it cannot be measured. */
+function textWidth(text: string, font: string): number | null {
+  if (measureCtx === undefined) measureCtx = document.createElement('canvas').getContext('2d');
+  if (!measureCtx) return null;
+  measureCtx.font = font;
+  return Math.max(...text.split('\n').map((line) => measureCtx!.measureText(line).width));
+}
+
 const texts = computed(() =>
   props.board.texts.map((t) => {
     const p = toScreen(view.value, t.x, t.y);
+    const fontSize = Math.max(8, t.size * view.value.scale);
+    // A note that would run past the right edge wraps there instead.
+    const room = Math.max(fontSize * 4, view.value.stageWidth - p.x - 6 * u.value);
+    const natural = textWidth(t.text, `bold ${fontSize}px ${FONT}`);
+    const wrap = natural !== null && natural > room ? { width: room, wrap: 'word' } : {};
     return {
       note: t,
       config: {
@@ -261,7 +275,8 @@ const texts = computed(() =>
         x: p.x,
         y: p.y,
         text: t.text,
-        fontSize: Math.max(8, t.size * view.value.scale),
+        ...wrap,
+        fontSize,
         fontStyle: 'bold',
         fontFamily: FONT,
         fill: t.color,

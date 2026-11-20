@@ -2,9 +2,14 @@ import JSZip from 'jszip';
 import { frameAt, type Frame } from '@/model/plays';
 import type { Board, Play } from '@/model/types';
 import { FPS, WIDTH, evenSize, frameTimes, makeAnimation, type AnimationFormat } from './animation';
-import { downloadBlob, fileSlug, uniqueNames } from './download';
+import { downloadBlob, fileSlug, stampedName, uniqueNames } from './download';
 
-type Renderer = (board: Board) => Promise<Blob>;
+export interface ImageOptions {
+  /** Put the board name above the field. */
+  title?: boolean;
+}
+
+type Renderer = (board: Board, options: ImageOptions) => Promise<Blob>;
 
 let renderer: Renderer | null = null;
 
@@ -13,24 +18,24 @@ export function registerRenderer(fn: Renderer | null): void {
   renderer = fn;
 }
 
-export async function renderBoardPng(board: Board): Promise<Blob> {
+export async function renderBoardPng(board: Board, options: ImageOptions = {}): Promise<Blob> {
   if (!renderer) throw new Error('Image export is not ready yet.');
-  return renderer(board);
+  return renderer(board, options);
 }
 
-export async function downloadBoardPng(board: Board): Promise<void> {
-  const blob = await renderBoardPng(board);
-  downloadBlob(blob, `${fileSlug(board.name, 'board')}.png`);
+export async function downloadBoardPng(board: Board, options: ImageOptions = {}): Promise<void> {
+  const blob = await renderBoardPng(board, options);
+  downloadBlob(blob, stampedName(fileSlug(board.name, 'board'), 'png'));
 }
 
-export async function downloadBoardsZip(boards: Board[], saveName: string): Promise<void> {
+export async function downloadBoardsZip(boards: Board[], saveName: string, options: ImageOptions = {}): Promise<void> {
   const zip = new JSZip();
   const names = uniqueNames(boards.map((b) => fileSlug(b.name, 'board')));
   for (const [i, board] of boards.entries()) {
-    zip.file(`${names[i]}.png`, await renderBoardPng(board));
+    zip.file(`${names[i]}.png`, await renderBoardPng(board, options));
   }
   const blob = await zip.generateAsync({ type: 'blob' });
-  downloadBlob(blob, `${fileSlug(saveName)}-images.zip`);
+  downloadBlob(blob, stampedName(`${fileSlug(saveName)}-images`, 'zip'));
 }
 
 // ---------- plays as GIF or video ----------
@@ -92,5 +97,5 @@ export async function downloadPlay(
   options: PlayFileOptions = {},
 ): Promise<void> {
   const blob = await makePlayFile(board, play, format, options);
-  downloadBlob(blob, `${fileSlug(board.name, 'board')}-${fileSlug(play.name, 'play')}.${format}`);
+  downloadBlob(blob, stampedName(`${fileSlug(board.name, 'board')}-${fileSlug(play.name, 'play')}`, format));
 }

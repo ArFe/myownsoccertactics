@@ -4,7 +4,8 @@ import { useSaveStore, type ImportMode } from '@/stores/save';
 import { presetLabel } from '@/model/field';
 import { getSport } from '@/model/sports';
 import { parseSave, serializeSave, SaveFormatError } from '@/model/persistence';
-import { downloadBlob, fileSlug } from '@/export/download';
+import { downloadBlob, fileSlug, stampedName } from '@/export/download';
+import { useExportPrefs } from '@/composables/exportPrefs';
 import { downloadBoardsZip } from '@/export/renderer';
 import { useToasts } from '@/composables/toast';
 import Icon from './Icon.vue';
@@ -45,6 +46,7 @@ watch(
   },
 );
 
+const { pngTitle } = useExportPrefs();
 const chosen = computed(() => store.save.boards.filter((b) => included.value.has(b.id)));
 
 function toggle(id: string, on: boolean): void {
@@ -74,13 +76,13 @@ function downloadJson(): void {
   const save = { ...store.save, boards: chosen.value };
   if (!save.boards.some((b) => b.id === save.activeBoardId)) save.activeBoardId = save.boards[0]!.id;
   const blob = new Blob([serializeSave(save)], { type: 'application/json' });
-  downloadBlob(blob, `${fileSlug(store.save.name)}.tactics.json`);
+  downloadBlob(blob, stampedName(fileSlug(store.save.name), 'tactics.json'));
 }
 
 async function downloadZip(): Promise<void> {
   busy.value = true;
   try {
-    await downloadBoardsZip(chosen.value, store.save.name);
+    await downloadBoardsZip(chosen.value, store.save.name, { title: pngTitle.value });
   } catch (err) {
     show(err instanceof Error ? err.message : 'The images could not be made.', 'error');
   } finally {
@@ -196,6 +198,7 @@ defineExpose({ pickFile: () => fileInput.value?.click() });
           <button type="button" class="btn" :disabled="chosen.length === 0 || busy" @click="downloadZip">
             {{ busy ? 'Making images…' : 'Download PNGs (.zip)' }}
           </button>
+          <label class="check"><input v-model="pngTitle" type="checkbox" />Board names as titles on the PNGs</label>
         </section>
 
         <section

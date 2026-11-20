@@ -56,7 +56,7 @@ test.afterEach(() => {
 // ---------- tests ----------
 
 test('opens with one 11v11 board, 4-3-3 against 4-4-2', async ({ page }) => {
-  await expect(page.getByLabel('Board name')).toHaveValue('Board 1');
+  await expect(page.getByLabel('Board name', { exact: true })).toHaveValue('Board 1');
   await expect(page.getByText('11v11 · 105 × 68 m')).toBeVisible();
   const { board } = await state(page);
   expect(board.players).toHaveLength(22);
@@ -189,18 +189,18 @@ test('custom field size stretches the board', async ({ page }) => {
 
 test('keeps many boards in one save, downloads and uploads it', async ({ page }) => {
   await page.getByRole('button', { name: 'New 7v7 board' }).click();
-  await page.getByLabel('Board name').fill('Build-out line');
+  await page.getByLabel('Board name', { exact: true }).fill('Build-out line');
   await expect(page.locator('.boards li')).toHaveCount(2);
 
   // Switch back to the first board.
   await page.locator('.boards').getByRole('button', { name: /Board 1/ }).click();
-  await expect(page.getByLabel('Board name')).toHaveValue('Board 1');
+  await expect(page.getByLabel('Board name', { exact: true })).toHaveValue('Board 1');
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'Download save' }).click(),
   ]);
-  expect(download.suggestedFilename()).toBe('my-tactics.tactics.json');
+  expect(download.suggestedFilename()).toMatch(/^my-tactics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.tactics\.json$/);
   const file = await download.path();
   const saved = JSON.parse(await readFile(file, 'utf8')) as SaveFile;
   expect(saved.boards.map((b) => b.name)).toEqual(['Board 1', 'Build-out line']);
@@ -223,12 +223,12 @@ test('rejects a file that is not a save', async ({ page }) => {
 });
 
 test('downloads the board as a PNG and all boards as a zip', async ({ page }) => {
-  await page.getByLabel('Board name').fill('Build-up vs 4-4-2');
+  await page.getByLabel('Board name', { exact: true }).fill('Build-up vs 4-4-2');
   const [png] = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'Download PNG' }).click(),
   ]);
-  expect(png.suggestedFilename()).toBe('build-up-vs-4-4-2.png');
+  expect(png.suggestedFilename()).toMatch(/^build-up-vs-4-4-2_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.png$/);
   const bytes = await readFile(await png.path());
   expect(bytes.subarray(1, 4).toString()).toBe('PNG');
   expect(bytes.readUInt32BE(16)).toBe(1600); // width from the PNG header
@@ -239,7 +239,7 @@ test('downloads the board as a PNG and all boards as a zip', async ({ page }) =>
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'Download PNGs (.zip)' }).click(),
   ]);
-  expect(zip.suggestedFilename()).toBe('my-tactics-images.zip');
+  expect(zip.suggestedFilename()).toMatch(/^my-tactics-images_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.zip$/);
   const zipBytes = await readFile(await zip.path());
   expect(zipBytes.subarray(0, 2).toString()).toBe('PK');
 });
@@ -375,7 +375,7 @@ test('downloads a play as GIF, WebM and MP4', async ({ page }) => {
     // GIF works everywhere; the videos need WebCodecs with that codec.
     if (label !== 'GIF' && (await button.isDisabled())) continue;
     const [download] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), button.click()]);
-    expect(download.suggestedFilename()).toBe(`board-1-play-1.${label.toLowerCase()}`);
+    expect(download.suggestedFilename()).toMatch(new RegExp(`^board-1-play-1_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}\\.${label.toLowerCase()}$`));
     const bytes = await readFile((await download.path())!);
     expect(bytes.length).toBeGreaterThan(1000);
     expect(magic[label]!(bytes), `${label} header`).toBe(true);
@@ -427,4 +427,59 @@ test('shows the board in 3D, with an orbit and a player’s-eye camera, and play
 
   await page.getByRole('group', { name: 'View' }).getByRole('button', { name: '2D' }).click();
   await expect(page.getByTestId('pitch')).toBeVisible();
+});
+
+/** Width and height of a PNG, from its header. */
+function pngSize(bytes: Buffer): { width: number; height: number } {
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
+
+test('zooms the field with the buttons, the keys and Ctrl + wheel, and dragging still works', async ({ page }) => {
+  const canvasWidth = async () => (await page.locator('[data-testid="pitch"] .konvajs-content').boundingBox())!.width;
+  const fit = await canvasWidth();
+  const zoom = page.getByRole('group', { name: 'Zoom' });
+  await zoom.getByRole('button', { name: 'Zoom in' }).click();
+  await zoom.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(zoom.getByRole('button', { name: 'Fit the field' })).toHaveText('150%');
+  expect(await canvasWidth()).toBeCloseTo(fit * 1.5, -1);
+
+  // Drag the player nearest the middle, which stays in view.
+  const { board } = await state(page);
+  const mid = [...board.players].sort((a, b) => Math.hypot(a.x - 52.5, a.y - 34) - Math.hypot(b.x - 52.5, b.y - 34))[0]!;
+  await dragWorld(page, [mid.x, mid.y], [mid.x + 3, mid.y + 2]);
+  const moved = (await state(page)).board.players.find((p) => p.id === mid.id)!;
+  expect(moved.x).toBeCloseTo(mid.x + 3, 0);
+  expect(moved.y).toBeCloseTo(mid.y + 2, 0);
+
+  await page.keyboard.press('0');
+  await expect(zoom.getByRole('button', { name: 'Fit the field' })).toHaveText('100%');
+  await page.keyboard.press('+');
+  await expect(zoom.getByRole('button', { name: 'Fit the field' })).toHaveText('125%');
+  await page.keyboard.press('-');
+  await expect(zoom.getByRole('button', { name: 'Zoom out' })).toBeDisabled();
+
+  const box = (await page.getByTestId('stage-host').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up('Control');
+  await expect(zoom.getByRole('button', { name: 'Fit the field' })).toHaveText('125%');
+});
+
+test('puts the board name as a title on the PNG when asked, and remembers it', async ({ page }) => {
+  const download = async () => {
+    const [d] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download PNG' }).click()]);
+    return pngSize(await readFile((await d.path())!));
+  };
+  const plain = await download();
+  await page.getByRole('button', { name: 'PNG options' }).click();
+  await page.getByLabel('Board name as a title').check();
+  await page.keyboard.press('Escape');
+  const titled = await download();
+  expect(titled.width).toBe(plain.width);
+  expect(titled.height).toBeGreaterThan(plain.height + 40);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'PNG options' }).click();
+  await expect(page.getByLabel('Board name as a title')).toBeChecked();
 });

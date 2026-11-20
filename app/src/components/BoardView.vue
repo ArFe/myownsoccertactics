@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { ZOOM_STEPS, anchoredScroll, useFieldZoom } from '@/composables/zoom';
 import { useSaveStore } from '@/stores/save';
 import { fieldLabel } from '@/model/field';
 import PitchStage from './PitchStage.vue';
@@ -18,7 +19,8 @@ const maxHeight = ref(800);
 let observer: ResizeObserver | undefined;
 function measure(): void {
   if (!host.value) return;
-  width.value = Math.max(280, host.value.clientWidth);
+  // The outer width, so scroll bars that come with zoom do not change it.
+  width.value = Math.max(280, Math.floor(host.value.getBoundingClientRect().width));
   // Leave room for the header and toolbar above the field.
   maxHeight.value = Math.max(320, window.innerHeight - 190);
 }
@@ -32,6 +34,32 @@ onBeforeUnmount(() => {
   observer?.disconnect();
   window.removeEventListener('resize', measure);
 });
+
+// ----- zoom (2D only) -----
+const { zoom, zoomBy, resetZoom, takeAnchor } = useFieldZoom();
+const maxZoom = ZOOM_STEPS.at(-1)!;
+
+// Keep the point under the mouse (or the middle) still while zooming.
+watch(zoom, async (next, prev) => {
+  const el = host.value;
+  const at = takeAnchor() ?? (el ? { x: el.clientWidth / 2, y: el.clientHeight / 2 } : null);
+  await nextTick();
+  if (!el || !at) return;
+  el.scrollLeft = anchoredScroll(el.scrollLeft, at.x, next / prev);
+  el.scrollTop = anchoredScroll(el.scrollTop, at.y, next / prev);
+});
+
+// Ctrl/⌘ + wheel, or a trackpad pinch, zooms; small pinch steps add up.
+let wheelSum = 0;
+function onWheel(e: WheelEvent): void {
+  if (view.value !== '2d' || !(e.ctrlKey || e.metaKey)) return;
+  e.preventDefault();
+  wheelSum += e.deltaY;
+  if (Math.abs(wheelSum) < 40) return;
+  const box = host.value!.getBoundingClientRect();
+  zoomBy(wheelSum < 0 ? 1 : -1, { x: e.clientX - box.left, y: e.clientY - box.top });
+  wheelSum = 0;
+}
 
 const sizeLabel = computed(() => fieldLabel(store.sport, store.board.field));
 
@@ -60,6 +88,13 @@ defineExpose({
         <button type="button" :aria-pressed="view === '2d'" @click="view = '2d'">2D</button>
         <button type="button" :aria-pressed="view === '3d'" @click="view = '3d'">3D</button>
       </div>
+      <div v-if="view === '2d'" class="zoom" role="group" aria-label="Zoom">
+        <button type="button" class="btn icon" aria-label="Zoom out" :disabled="zoom <= 1" @click="zoomBy(-1)">−</button>
+        <button type="button" class="btn zoom-level" aria-label="Fit the field" title="Fit the field (0)" @click="resetZoom">
+          {{ Math.round(zoom * 100) }}%
+        </button>
+        <button type="button" class="btn icon" aria-label="Zoom in" :disabled="zoom >= maxZoom" @click="zoomBy(1)">+</button>
+      </div>
       <button type="button" class="btn" :aria-pressed="namesOn" @click="store.setNamesVisible(!namesOn)">
         Names: {{ namesOn ? 'on' : 'off' }}
       </button>
@@ -72,7 +107,14 @@ defineExpose({
         Ball: {{ store.frame.ball.visible ? 'on' : 'off' }}
       </button>
     </div>
-    <div ref="host" class="stage-host">
+    <div
+      ref="host"
+      class="stage-host"
+      :class="{ zoomed: view === '2d' && zoom > 1 }"
+      :style="view === '2d' && zoom > 1 ? { maxHeight: `${maxHeight + 24}px` } : undefined"
+      data-testid="stage-host"
+      @wheel="onWheel"
+    >
       <Pitch3D
         v-if="view === '3d'"
         :board="store.frame"
@@ -86,8 +128,8 @@ defineExpose({
           :board="store.frame"
           :fade="store.frameFade"
           :interactive="store.playTime === null"
-          :width="width"
-          :max-height="maxHeight"
+          :width="width * zoom"
+          :max-height="maxHeight * zoom"
         />
       </div>
     </div>
@@ -116,7 +158,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex: 1 1 260px;
+  flex: 1 1 160px;
   min-width: 0;
 }
 .title {
@@ -149,10 +191,32 @@ defineExpose({
 .view-switch {
   width: 120px;
 }
+.zoom {
+  display: flex;
+  gap: 4px;
+}
+.zoom .btn.icon {
+  font-size: 18px;
+}
+.zoom-level {
+  min-width: 64px;
+  padding: 0 8px;
+  font-variant-numeric: tabular-nums;
+}
 .stage-host {
   width: 100%;
   display: flex;
-  justify-content: center;
+}
+/* margin: auto centres the field, and still lets it scroll when zoomed in. */
+.stage-host > * {
+  margin: 0 auto;
+}
+.stage-host.zoomed {
+  overflow: auto;
+  border-radius: 12px;
+}
+.stage-host.zoomed > * {
+  margin: auto;
 }
 .stage-frame {
   border-radius: 12px;

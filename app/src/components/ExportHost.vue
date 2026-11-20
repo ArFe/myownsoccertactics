@@ -2,9 +2,9 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
 import type { Board } from '@/model/types';
 import { deepCopy } from '@/model/factory';
-import { registerFrameRenderer, registerRenderer, type FrameSession } from '@/export/renderer';
+import { registerFrameRenderer, registerRenderer, type FrameSession, type ImageOptions } from '@/export/renderer';
+import { withTitle } from '@/export/title';
 import type { Frame } from '@/model/plays';
-import { dataUrlToBlob } from '@/export/download';
 import PitchStage from './PitchStage.vue';
 
 /** Width of exported images, in pixels (height follows the field). */
@@ -21,7 +21,7 @@ const stage = ref<InstanceType<typeof PitchStage> | null>(null);
 let queue: Promise<unknown> = Promise.resolve();
 let key = 0;
 
-async function render(board: Board): Promise<Blob> {
+async function render(board: Board, options: ImageOptions): Promise<Blob> {
   // Konva draws text with whatever font is ready, so wait for web fonts.
   await document.fonts?.ready;
   job.value = { board: deepCopy(board), fade: {}, width: EXPORT_WIDTH, key: ++key };
@@ -30,9 +30,12 @@ async function render(board: Board): Promise<Blob> {
   const konvaStage = stage.value?.getStage();
   if (!konvaStage) throw new Error('The image could not be made.');
   konvaStage.draw();
-  const url = konvaStage.toDataURL({ mimeType: 'image/png', pixelRatio: 1 });
+  let image = konvaStage.toCanvas({ pixelRatio: 1 });
   job.value = null;
-  return dataUrlToBlob(url);
+  if (options.title) image = withTitle(image, board.name);
+  return new Promise((resolve, reject) =>
+    image.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('The image could not be made.'))), 'image/png'),
+  );
 }
 
 /** Keeps one stage open and redraws it for each frame of a play. */
@@ -58,8 +61,8 @@ async function openSession(board: Board, width: number): Promise<Omit<FrameSessi
 }
 
 onMounted(() => {
-  registerRenderer((board) => {
-    const run = queue.then(() => render(board));
+  registerRenderer((board, options) => {
+    const run = queue.then(() => render(board, options));
     queue = run.catch(() => undefined);
     return run;
   });
