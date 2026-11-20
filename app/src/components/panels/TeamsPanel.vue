@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useSaveStore } from '@/stores/save';
 import { formationGroups, getFormation } from '@/model/formations';
 import PositionsCard from './PositionsCard.vue';
+import SizesCard from './SizesCard.vue';
 import type { TeamSide } from '@/model/types';
 import { toColorInput } from '@/utils/color';
 
@@ -38,6 +39,7 @@ function onNumber(id: string, e: Event): void {
 <template>
   <div class="stack teams">
     <PositionsCard />
+    <SizesCard />
     <section v-for="{ side, label } in SIDES" :key="side" class="card" :data-testid="`team-${side}`">
       <div class="team-head">
         <span class="team-dot" :style="{ background: store.board.teams[side].shirtColor }" />

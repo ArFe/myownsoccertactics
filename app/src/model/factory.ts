@@ -1,3 +1,4 @@
+import { defaultBallColors } from './balls';
 import { createField, defaultPreset, presetDef } from './field';
 import { getFormation, placeFormation } from './formations';
 import { DEFAULT_SPORT, getSport } from './sports';
@@ -73,7 +74,15 @@ export function createBoard(sportId: SportId = DEFAULT_SPORT, presetId?: string,
       ...playersInFormation(sport, 'home', defaults.home, field),
       ...playersInFormation(sport, 'away', defaults.away, field),
     ],
-    ball: { x: field.length / 2, y: field.width / 2, visible: true },
+    playerSize: 'm',
+    ball: {
+      x: field.length / 2,
+      y: field.width / 2,
+      visible: true,
+      style: sport.ballStyle,
+      colors: defaultBallColors(sport.ballStyle),
+      size: 'm',
+    },
     areas: [],
     arrows: [],
     texts: [],

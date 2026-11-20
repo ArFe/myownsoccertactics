@@ -77,7 +77,7 @@ describe('saved positions', () => {
 
   it('saves the ball with the set, unless asked not to or it is hidden', () => {
     const b = createBoard('soccer', '11v11');
-    b.ball = { x: 94, y: 34, visible: true };
+    Object.assign(b.ball, { x: 94, y: 34, visible: true });
     expect(capturePositions(b, ['home'], 'Penalty').ball).toEqual({ fx: 0.8952, fy: 0.5 });
     expect(capturePositions(b, ['home'], 'Penalty', false).ball).toBeUndefined();
     b.ball.visible = false;
@@ -86,20 +86,23 @@ describe('saved positions', () => {
 
   it('moves the ball when loading, and turns it with the team', () => {
     const src = createBoard('soccer', '11v11');
-    src.ball = { x: 99.5, y: 0.5, visible: true }; // corner kick
+    Object.assign(src.ball, { x: 99.5, y: 0.5, visible: true }); // corner kick
     const set = capturePositions(src, ['home'], 'Corner');
 
     const b = createBoard('soccer', '11v11');
     b.ball.visible = false;
+    b.ball.style = 'volleyball';
+    b.ball.size = 'xl';
     applyPositions(b, set, [{ from: 'home', to: 'home' }], { withNames: false, withBall: true, runoff: 4 });
-    expect(b.ball).toEqual({ x: 99.5, y: 0.5, visible: true });
+    // The place changes; the board's own ball look stays.
+    expect(b.ball).toMatchObject({ x: 99.5, y: 0.5, visible: true, style: 'volleyball', size: 'xl' });
 
     applyPositions(b, set, [{ from: 'home', to: 'away' }], { withNames: false, withBall: true, runoff: 4 });
-    expect(b.ball).toEqual({ x: 5.5, y: 67.5, visible: true });
+    expect(b.ball).toMatchObject({ x: 5.5, y: 67.5, visible: true });
 
-    b.ball = { x: 50, y: 30, visible: true };
+    Object.assign(b.ball, { x: 50, y: 30 });
     applyPositions(b, set, [{ from: 'home', to: 'home' }], { withNames: false, withBall: false, runoff: 4 });
-    expect(b.ball).toEqual({ x: 50, y: 30, visible: true });
+    expect(b.ball).toMatchObject({ x: 50, y: 30, visible: true });
   });
 
   it('offers both, one team, or either team as targets', () => {

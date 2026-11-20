@@ -225,3 +225,39 @@ describe('saved positions in the store', () => {
     expect(s.save.savedPositions.map((p) => p.name)).toEqual(['Corner']);
   });
 });
+
+describe('ball and player sizes in the store', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('changes the ball style with its default colours, then one colour, size, and undo', () => {
+    const s = freshStore();
+    expect(s.board.ball).toMatchObject({ style: 'soccer', size: 'm' });
+    s.setBallStyle('volleyball');
+    expect(s.board.ball.colors).toEqual({ panel1: '#FFFFFF', panel2: '#1E5AA8', panel3: '#FFD23F' });
+    s.setBallColor('panel2', '#123456');
+    s.setBallColor('patches', '#000000'); // not a volleyball slot: ignored
+    expect(s.board.ball.colors).toEqual({ panel1: '#FFFFFF', panel2: '#123456', panel3: '#FFD23F' });
+    s.setBallSize('xl');
+    expect(s.board.ball.size).toBe('xl');
+    s.undo();
+    s.undo();
+    expect(s.board.ball).toMatchObject({ style: 'volleyball', size: 'm' });
+    expect(s.board.ball.colors.panel2).toBe('#1E5AA8');
+  });
+
+  it('sets one player size for the board', () => {
+    const s = freshStore();
+    expect(s.board.playerSize).toBe('m');
+    s.setPlayerSize('s');
+    expect(s.board.playerSize).toBe('s');
+    s.addBoard('7v7');
+    expect(s.board.playerSize).toBe('m'); // new boards start at M
+  });
+
+  it('keeps the ball look when the ball is moved', () => {
+    const s = freshStore();
+    s.setBallStyle('basketball');
+    s.moveBall(10, 10);
+    expect(s.board.ball).toMatchObject({ x: 10, y: 10, style: 'basketball' });
+  });
+});

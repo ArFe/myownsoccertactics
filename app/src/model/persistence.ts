@@ -1,3 +1,4 @@
+import { BALL_STYLES, BALL_STYLE_IDS, SIZE_IDS } from './balls';
 import { createBoard, createSave, nowIso } from './factory';
 import { clampSize, isKnownPreset } from './field';
 import { DEFAULT_SPORT, SPORT_IDS, getSport } from './sports';
@@ -50,6 +51,20 @@ function readTeam(v: unknown, d: Team): Team {
     formation: str(v.formation, d.formation),
     showNames: bool(v.showNames, d.showNames),
     visible: bool(v.visible, d.visible),
+  };
+}
+
+function readBall(v: Obj, d: Board['ball'], field: FieldSettings): Board['ball'] {
+  const style = oneOf(v.style, BALL_STYLE_IDS, d.style);
+  const colors = isObj(v.colors) ? v.colors : {};
+  return {
+    x: num(v.x, field.length / 2),
+    y: num(v.y, field.width / 2),
+    visible: bool(v.visible, true),
+    style,
+    // Only the style's own colour slots are kept.
+    colors: Object.fromEntries(BALL_STYLES[style].colors.map((c) => [c.key, color(colors[c.key], c.default)])),
+    size: oneOf(v.size, SIZE_IDS, d.size),
   };
 }
 
@@ -122,7 +137,8 @@ function readBoard(v: Obj, i: number): Board {
     field,
     teams: { home: readTeam(teams.home, d.teams.home), away: readTeam(teams.away, d.teams.away) },
     players,
-    ball: { x: num(ball.x, field.length / 2), y: num(ball.y, field.width / 2), visible: bool(ball.visible, true) },
+    playerSize: oneOf(v.playerSize, SIZE_IDS, d.playerSize),
+    ball: readBall(ball, d.ball, field),
     areas: areas.filter((a) => a.shape !== 'polygon' || a.points.length >= 6),
     arrows,
     texts,
@@ -152,11 +168,28 @@ function v2ToV3(data: Obj): Obj {
   return { ...data, version: 3, savedPositions: [] };
 }
 
+/** Version 3 to 4: medium players, and a medium soccer ball in its usual colours. */
+function v3ToV4(data: Obj): Obj {
+  const boards = Array.isArray(data.boards)
+    ? data.boards.map((b: unknown) => {
+        if (!isObj(b)) return b;
+        const ball = isObj(b.ball) ? b.ball : {};
+        return {
+          ...b,
+          playerSize: 'm',
+          ball: { ...ball, style: 'soccer', colors: { body: '#FFFFFF', patches: '#111827' }, size: 'm' },
+        };
+      })
+    : data.boards;
+  return { ...data, version: 4, boards };
+}
+
 /** Upgrades older save files, one version at a time. */
 export function migrate(data: Obj, from: number): Obj {
   let out = data;
   if (from < 2) out = v1ToV2(out);
   if (from < 3) out = v2ToV3(out);
+  if (from < 4) out = v3ToV4(out);
   return out;
 }
 

@@ -17,6 +17,7 @@ import {
 import type { Area, Arrow, Board } from '@/model/types';
 import { useSaveStore, type SelectionKind } from '@/stores/save';
 import { hexToRgba } from '@/utils/color';
+import { BALL_STYLES, sizeScale } from '@/model/balls';
 
 const props = withDefaults(
   defineProps<{
@@ -288,27 +289,43 @@ const cones = computed(() =>
   }),
 );
 
+// The ball is drawn in units of its radius inside a group scaled to that radius.
 const ball = computed(() => {
   const b = props.board.ball;
   if (!b.visible) return null;
   const p = toScreen(view.value, b.x, b.y);
-  const sel = isSelected('ball', 'ball');
+  const style = BALL_STYLES[b.style] ?? BALL_STYLES.soccer;
+  const r = px(8) * sizeScale(b.size);
+  const oval = style.shape === 'oval';
+  const ry = oval ? (style.ovalHeight ?? 0.6) : 1;
+  const colorOf = (key: string): string =>
+    b.colors[key] ?? style.colors.find((c) => c.key === key)?.default ?? '#FFFFFF';
+  const shape = { radiusX: 1, radiusY: ry };
   return {
-    x: p.x,
-    y: p.y,
-    radius: px(7),
-    fill: '#FFFFFF',
-    stroke: sel ? '#FDE047' : '#111827',
-    strokeWidth: sel ? px(3) : px(2),
-    shadowColor: '#000000',
-    shadowBlur: 4,
-    shadowOpacity: 0.4,
-    draggable: canEdit.value,
+    oval,
+    group: { id: 'ball', name: 'ball', x: p.x, y: p.y, scaleX: r, scaleY: r, draggable: canEdit.value },
+    ring: isSelected('ball', 'ball')
+      ? { ...shape, radiusX: 1.35, radiusY: ry + 0.35, stroke: '#FDE047', strokeWidth: 0.2, listening: false }
+      : null,
+    body: { ...shape, fill: colorOf(style.body), shadowColor: '#000000', shadowBlur: 4, shadowOpacity: 0.4 },
+    clip: {
+      listening: false,
+      clipFunc: (ctx: CanvasRenderingContext2D) => ctx.ellipse(0, 0, 1, ry, 0, 0, Math.PI * 2),
+    },
+    parts: style.parts.map((part) =>
+      part.line
+        ? { data: part.path, stroke: colorOf(part.color), strokeWidth: part.line, lineCap: 'round', listening: false }
+        : { data: part.path, fill: colorOf(part.color), listening: false },
+    ),
+    outline: { ...shape, stroke: '#111827', strokeWidth: 0.1, listening: false },
   };
 });
 
 const players = computed(() => {
-  const r = px(17);
+  const scale = sizeScale(props.board.playerSize);
+  const r = px(17) * scale;
+  // Labels grow more slowly than the discs, so they stay readable but tidy.
+  const labelScale = 0.5 + 0.5 * scale;
   return props.board.players
     .filter((p) => props.board.teams[p.team].visible)
     .map((p) => {
@@ -336,7 +353,7 @@ const players = computed(() => {
           offsetY: r,
           align: 'center',
           verticalAlign: 'middle',
-          fontSize: px(14),
+          fontSize: px(14) * scale,
           fontStyle: 'bold',
           fontFamily: FONT,
           fill: team.numberColor,
@@ -353,7 +370,7 @@ const players = computed(() => {
                   pointerWidth: 0,
                   pointerHeight: 0,
                 },
-                text: { text: p.name, fontSize: px(11), fontStyle: 'bold', fontFamily: FONT, fill: '#FFFFFF', padding: px(3) },
+                text: { text: p.name, fontSize: px(11) * labelScale, fontStyle: 'bold', fontFamily: FONT, fill: '#FFFFFF', padding: px(3) },
               }
             : null,
       };
@@ -377,10 +394,12 @@ function onPointDragEnd(kind: 'player' | 'ball' | 'text' | 'cone', id: string, e
 
 function onLayerDragStart(e: KonvaEvent): void {
   if (e.target.name() === 'player') selectItem('player', e.target.id());
+  if (e.target.name() === 'ball') selectItem('ball', 'ball');
 }
 
 function onLayerDragEnd(e: KonvaEvent): void {
   if (e.target.name() === 'player') onPointDragEnd('player', e.target.id(), e);
+  if (e.target.name() === 'ball') onPointDragEnd('ball', 'ball', e);
 }
 
 function onPlayerDblClick(id: string): void {
@@ -680,13 +699,19 @@ defineExpose({ getStage, cancelDraft, finishPolygon, view });
           </v-label>
         </v-group>
 
-        <v-circle
-          v-if="ball"
-          :config="ball"
-          @mousedown="selectItem('ball', 'ball')"
-          @touchstart="selectItem('ball', 'ball')"
-          @dragend="onPointDragEnd('ball', 'ball', $event)"
-        />
+        <!-- Like players, the ball group's drags are handled by the stage. -->
+        <v-group v-if="ball" :config="ball.group">
+          <v-ellipse v-if="ball.ring" :config="ball.ring" />
+          <v-ellipse
+            :config="ball.body"
+            @mousedown="selectItem('ball', 'ball')"
+            @touchstart="selectItem('ball', 'ball')"
+          />
+          <v-group :config="ball.clip">
+            <v-path v-for="(part, i) in ball.parts" :key="i" :config="part" />
+          </v-group>
+          <v-ellipse :config="ball.outline" />
+        </v-group>
 
         <v-text
           v-for="t in texts"

@@ -1,4 +1,4 @@
-import type { FieldSettings, SportId, TeamSide } from '../types';
+import type { BallStyleId, FieldSettings, SportId, TeamSide } from '../types';
 
 export interface Polyline {
   points: number[];
@@ -82,4 +82,6 @@ export interface SportDefinition {
   surface: { label: string; color: string; lineColor: string };
   drawField(field: FieldSettings): FieldDrawing;
   formations: Formation[];
+  /** The ball new boards start with. */
+  ballStyle: BallStyleId;
 }

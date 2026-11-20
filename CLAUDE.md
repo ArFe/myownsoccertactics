@@ -9,6 +9,8 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   `SportDefinition` interface. Everything else reads `getSport(board.sport)`
   or `store.sport`; never hard-code "11v11", a marking key or a formation
   outside that folder.
+- Ball looks live in `model/balls.ts`: shapes drawn in units of the ball's
+  radius, with named colour slots; `tests/balls.test.ts` checks each style.
 - Adding a sport: write `model/sports/<sport>/`, add its id to `SportId` in
   `model/types.ts` and to `SPORTS` in `model/sports/index.ts`.
   `tests/sports.test.ts` then checks it (presets in limits, formations

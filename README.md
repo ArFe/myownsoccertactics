@@ -7,6 +7,9 @@ A web app to draw and explain soccer tactics. It runs fully in the browser.
 - Mark areas on the field (rectangle, ellipse, polygon), with a name, colour
   and transparency.
 - Arrows for passes and runs, text notes, cones and the ball.
+- Player size (S, M, L, XL) per board. The ball has its own size and a
+  style (soccer, volleyball, basketball, American football), each with its
+  own colours.
 - One save holds many boards. It is kept in the browser and can be
   downloaded or uploaded as a `.json` file.
 - Save the players' places as named starting positions (one team or both),

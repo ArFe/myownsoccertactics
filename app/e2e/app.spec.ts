@@ -284,3 +284,22 @@ test('saves starting positions and loads them on another board, even after a rel
   ({ board } = await state(page));
   expect(board.players.find((p) => p.team === 'away')!.x).toBeGreaterThan(95);
 });
+
+test('changes player size, ball style, colour and size, and the styled ball can still be dragged', async ({ page }) => {
+  const card = page.getByTestId('players-and-ball');
+  await card.getByRole('group', { name: 'Player size' }).getByRole('button', { name: 'Extra large' }).click();
+  await card.getByLabel('Ball style').selectOption({ label: 'Volleyball' });
+  await card.getByLabel('Ball colour: Panel 2').fill('#ff0000');
+  await card.getByRole('group', { name: 'Ball size' }).getByRole('button', { name: 'Large', exact: true }).click();
+  let { board } = await state(page);
+  expect(board.playerSize).toBe('xl');
+  expect(board.ball).toMatchObject({ style: 'volleyball', size: 'l' });
+  expect(board.ball.colors.panel2).toBe('#ff0000');
+
+  // Drag the ball by its body; the click selects it and opens its settings.
+  await dragWorld(page, [board.ball.x, board.ball.y], [board.ball.x + 8, board.ball.y + 6]);
+  ({ board } = await state(page));
+  expect(board.ball.x).toBeCloseTo(52.5 + 8, 0);
+  expect(board.ball.y).toBeCloseTo(34 + 6, 0);
+  await expect(page.locator('#panel-selection').getByLabel('Ball style')).toHaveValue('volleyball');
+});
