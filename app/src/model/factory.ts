@@ -88,6 +88,9 @@ export function createBoard(sportId: SportId = DEFAULT_SPORT, presetId?: string,
     texts: [],
     cones: [],
     plays: [],
+    subs: [],
+    waves: [],
+    gameDay: { on: false, team: 'home', subsShown: 'bench' },
     updatedAt: nowIso(),
   };
 }
@@ -121,6 +124,17 @@ export function cloneBoardWithNewIds(board: Board, name = board.name): Board {
   copy.arrows.forEach((a) => renew(a, 'r'));
   copy.texts.forEach((t) => renew(t, 't'));
   copy.cones.forEach((c) => renew(c, 'c'));
+  const waveIds = new Map<string, string>();
+  for (const w of copy.waves) {
+    const next = newId('w');
+    waveIds.set(w.id, next);
+    w.id = next;
+  }
+  copy.subs = copy.subs.flatMap((s) =>
+    ids.has(s.replaces)
+      ? [{ ...s, id: newId('sb'), replaces: ids.get(s.replaces)!, waveId: s.waveId ? (waveIds.get(s.waveId) ?? null) : null }]
+      : [],
+  );
   for (const play of copy.plays) {
     play.id = newId('pl');
     for (const step of play.steps) {

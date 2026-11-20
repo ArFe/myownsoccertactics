@@ -33,6 +33,11 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   vanish on a full field. Editing stays in 2D.
 - Download names go through `stampedName()` in `export/download.ts`
   (`name_YYYY-MM-DD_HH-MM-SS.ext`); use it for any new download.
+- Game day lives in `model/gameDay.ts`. Subs point at a field player by
+  id; `tidySubs()` runs on every board change, so a sub whose player is
+  gone (smaller team, new preset) goes too. The bench is drawn by
+  `PitchStage` under the field, so PNGs and the zip include it; the 3D
+  view does not show subs.
 - All changes to a save go through the store (`stores/save.ts`), so undo and
   autosave see them.
 - Changing the save file shape: bump `SAVE_VERSION` and add a step to
@@ -61,27 +66,18 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
 - [x] Player's-eye camera: pick a player, free look by dragging.
 
 ## Game day · substitutes
-Both items change the save file shape: one `SAVE_VERSION` bump and one
-`migrate()` step in `model/persistence.ts` for the two.
-- [ ] **Substitute players per position.** Each player on the field can
-      have one or more subs waiting for that spot. Today `Player` (in
-      `model/types.ts`) is only on the field; there is no bench.
-      - Why: a coach plans who comes on for whom before the game.
-      - Likely shape: a `subs` list per player (or a bench list with a
-        `replaces` player id). A swap keeps the spot (`x`, `y`, `role`)
-        and changes `number` and `name`.
-      - To settle: are subs drawn on the board (beside the field, in the
-        run-off) or only in a panel? Do saved positions
-        (`SavedPositions`) carry the subs too?
-- [ ] **A game day board: one team, substitution times per colour.** A
-      board kind that shows only our team, ready for the match.
-      - Hiding a team already works (`Team.visible`); reuse it, don't add
-        a second path.
-      - Each substitution wave gets a colour and a time (e.g. blue at
-        20', red at 35'). The sub and the player they replace show that
-        colour, so the plan reads at a glance.
-      - To settle: is "game day" a new board type, or a mode on any board?
-        Times as match minutes, or as a live clock during the game?
+Save file version 6. Settled 2026-11-20: subs stay on the board (saved
+positions do not carry them); game day is a mode on any board; times are
+match minutes; subs show on a bench, beside the player, or both.
+- [x] **Substitute players per position.** `board.subs`, each with a
+      `replaces` player id and an optional time (`waveId`). One player can
+      have several subs.
+- [x] **Game day mode: one team, substitution times per colour.** Hides
+      the other team with `Team.visible`; each time has a colour and a
+      minute; the player coming off gets a ring in that colour.
+- [ ] **Make a swap.** A button that puts the sub on the field in the
+      player's spot (keeps `x`, `y`, `role`; takes the sub's `number` and
+      `name`), for use during the match.
 
 ## Small things seen in Phase 1
 - [x] PNG export has no title; add the board name as an option.

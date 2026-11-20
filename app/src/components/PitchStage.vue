@@ -18,6 +18,7 @@ import type { Area, Arrow, Board } from '@/model/types';
 import { useSaveStore, type SelectionKind } from '@/stores/save';
 import { hexToRgba } from '@/utils/color';
 import { BALL_STYLES, sizeScale } from '@/model/balls';
+import { ringColor, subsFor, teamSubs, waveOf, wavesByMinute } from '@/model/gameDay';
 
 const props = withDefaults(
   defineProps<{
@@ -46,8 +47,13 @@ const trRef = ref<NodeRef | null>(null);
 
 // The board prop may not be the open board (image export), so use its own sport.
 const sport = computed(() => getSport(props.board.sport));
+// Game day can show a bench under the field; the field gets the rest of the space.
+const gameDay = computed(() => props.board.gameDay);
+const benchShown = computed(() => gameDay.value.on && gameDay.value.subsShown !== 'beside');
+const besideShown = computed(() => gameDay.value.on && gameDay.value.subsShown !== 'bench');
+const benchHeight = computed(() => (benchShown.value ? Math.round(Math.min(130, Math.max(64, props.width * 0.085))) : 0));
 const view = computed(() =>
-  makeView(props.board.field, sport.value.runoff(props.board.field), props.width, props.maxHeight),
+  makeView(props.board.field, sport.value.runoff(props.board.field), props.width, props.maxHeight - benchHeight.value),
 );
 const u = computed(() => view.value.unit);
 /** Pixel size that scales with the stage but never gets too small to read. */
@@ -353,6 +359,62 @@ const ball = computed(() => {
   };
 });
 
+// ---------- game day bench ----------
+const bench = computed(() => {
+  if (!benchShown.value) return null;
+  const b = props.board;
+  const team = b.teams[gameDay.value.team];
+  const W = view.value.stageWidth;
+  const H = benchHeight.value;
+  const top = view.value.stageHeight;
+  const pad = H * 0.16;
+  const font = (n: number) => Math.max(9, H * n);
+  const text = (t: string, x: number, y: number, size: number, fill: string, extra: Record<string, unknown> = {}) => ({
+    text: t, x, y, fontSize: font(size), fontFamily: FONT, fontStyle: 'bold', fill, listening: false, ...extra,
+  });
+
+  const waves = wavesByMinute(b);
+  const legendItem = H * 0.95;
+  const legendW = waves.length * legendItem;
+  const labelW = H * 1.0;
+  const subs = teamSubs(b, gameDay.value.team);
+  const room = W - labelW - legendW - pad * 3;
+  const chipW = subs.length ? Math.min(H * 2.1, room / subs.length) : 0;
+  const r = H * 0.2;
+
+  return {
+    background: { x: 0, y: top, width: W, height: H, fill: '#14301F', listening: false },
+    label: text('BENCH', pad, top + H / 2 - font(0.13) / 2, 0.13, '#A7C4B2', { letterSpacing: 1 }),
+    empty: subs.length ? null : text('No subs yet: add them in Game day', labelW + pad, top + H / 2 - font(0.15) / 2, 0.15, '#A7C4B2', { fontStyle: 'normal' }),
+    chips: subs.map((sub, i) => {
+      const x = labelW + pad + i * chipW;
+      const cy = top + H / 2;
+      const wave = waveOf(b, sub);
+      const off = b.players.find((p) => p.id === sub.replaces);
+      return {
+        id: sub.id,
+        disc: { x: x + r, y: cy, radius: r, fill: team.shirtColor, stroke: wave?.color ?? '#FFFFFF', strokeWidth: Math.max(2, H * 0.045), listening: false },
+        number: text(String(sub.number), x, cy - r, 0.17, team.numberColor, { width: r * 2, height: r * 2, align: 'center', verticalAlign: 'middle' }),
+        name: text(sub.name || `#${sub.number}`, x + r * 2 + pad * 0.5, cy - font(0.15) * 1.1, 0.15, '#FFFFFF', {
+          width: chipW - r * 2 - pad, wrap: 'none', ellipsis: true,
+        }),
+        detail: text(`for ${off?.number ?? '?'}${wave ? ` · ${wave.minute}'` : ''}`, x + r * 2 + pad * 0.5, cy + font(0.13) * 0.15, 0.13, wave?.color ?? '#A7C4B2', {
+          width: chipW - r * 2 - pad, wrap: 'none', ellipsis: true,
+        }),
+      };
+    }),
+    legend: waves.map((w, i) => {
+      const x = W - legendW - pad + i * legendItem;
+      const cy = top + H / 2;
+      return {
+        id: w.id,
+        dot: { x: x + H * 0.12, y: cy, radius: H * 0.11, fill: w.color, listening: false },
+        text: text(`${w.minute}'`, x + H * 0.28, cy - font(0.16) / 2, 0.16, '#FFFFFF'),
+      };
+    }),
+  };
+});
+
 const players = computed(() => {
   const scale = sizeScale(props.board.playerSize);
   const r = px(17) * scale;
@@ -364,8 +426,50 @@ const players = computed(() => {
       const team = props.board.teams[p.team];
       const s = toScreen(view.value, p.x, p.y);
       const sel = isSelected('player', p.id);
+      const onGameDay = gameDay.value.on && p.team === gameDay.value.team;
+      const ring = onGameDay ? ringColor(props.board, p.id) : null;
+      const beside = onGameDay && besideShown.value ? subsFor(props.board, p.id) : [];
+      const small = r * 0.62;
       return {
         player: p,
+        // A white edge under the ring keeps a blue ring visible on a blue shirt.
+        ring: ring
+          ? {
+              edge: { radius: r + px(5), stroke: '#FFFFFF', strokeWidth: px(8), listening: false },
+              color: { radius: r + px(5), stroke: ring, strokeWidth: px(4.5), listening: false },
+            }
+          : null,
+        beside: beside.map((sub, i) => {
+          const x = r + small * 0.6 + i * small * 2.1;
+          const y = -r * 0.75;
+          return {
+            id: sub.id,
+            circle: {
+              x,
+              y,
+              radius: small,
+              fill: team.shirtColor,
+              stroke: waveOf(props.board, sub)?.color ?? '#FFFFFF',
+              strokeWidth: px(3),
+              opacity: 0.92,
+              listening: false,
+            },
+            text: {
+              x: x - small,
+              y: y - small,
+              width: small * 2,
+              height: small * 2,
+              align: 'center',
+              verticalAlign: 'middle',
+              text: String(sub.number),
+              fontSize: px(10) * scale,
+              fontStyle: 'bold',
+              fontFamily: FONT,
+              fill: team.numberColor,
+              listening: false,
+            },
+          };
+        }),
         group: { id: p.id, name: 'player', x: s.x, y: s.y, draggable: canEdit.value },
         circle: {
           radius: r,
@@ -649,7 +753,7 @@ defineExpose({ getStage, cancelDraft, finishPolygon, view });
   <div class="pitch-stage" :class="{ drawing: interactive && store.tool !== 'select' }">
     <v-stage
       ref="stageRef"
-      :config="{ width: view.stageWidth, height: view.stageHeight }"
+      :config="{ width: view.stageWidth, height: view.stageHeight + benchHeight }"
       @mousedown="onStageDown"
       @touchstart="onStageDown"
       @mousemove="onStageMove"
@@ -667,6 +771,21 @@ defineExpose({ getStage, cancelDraft, finishPolygon, view });
         <v-line v-for="(g, i) in field.goals" :key="'g' + i" :config="g" />
         <v-line v-for="(l, i) in field.lines" :key="'l' + i" :config="l" />
         <v-circle v-for="(s, i) in field.spots" :key="'p' + i" :config="s" />
+        <template v-if="bench">
+          <v-rect :config="bench.background" />
+          <v-text :config="bench.label" />
+          <v-text v-if="bench.empty" :config="bench.empty" />
+          <template v-for="c in bench.chips" :key="c.id">
+            <v-circle :config="c.disc" />
+            <v-text :config="c.number" />
+            <v-text :config="c.name" />
+            <v-text :config="c.detail" />
+          </template>
+          <template v-for="l in bench.legend" :key="l.id">
+            <v-circle :config="l.dot" />
+            <v-text :config="l.text" />
+          </template>
+        </template>
       </v-layer>
 
       <v-layer>
@@ -717,6 +836,14 @@ defineExpose({ getStage, cancelDraft, finishPolygon, view });
 
         <!-- Groups cannot take listeners, so the circle takes clicks and the stage takes drags. -->
         <v-group v-for="p in players" :key="p.player.id" :config="p.group">
+          <template v-if="p.ring">
+            <v-circle :config="p.ring.edge" />
+            <v-circle :config="p.ring.color" />
+          </template>
+          <template v-for="b in p.beside" :key="b.id">
+            <v-circle :config="b.circle" />
+            <v-text :config="b.text" />
+          </template>
           <v-circle
             :config="p.circle"
             @mousedown="selectItem('player', p.player.id)"
