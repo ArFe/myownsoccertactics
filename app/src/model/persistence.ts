@@ -3,7 +3,7 @@ import { clampSize, isKnownPreset } from './field';
 import { DEFAULT_SPORT, SPORT_IDS, getSport } from './sports';
 import type { SportDefinition } from './sports/types';
 import { APP_ID, SAVE_VERSION } from './types';
-import type { Area, Arrow, Board, Cone, FieldSettings, Player, SaveFile, Team, TeamSide, TextNote } from './types';
+import type { Area, Arrow, Board, Cone, FieldSettings, Player, SaveFile, SavedPositions, SavedSpot, Team, TeamSide, TextNote } from './types';
 
 export const STORAGE_KEY = 'myownsoccertactics.save';
 export const BROKEN_KEY = 'myownsoccertactics.save.unreadable';
@@ -147,10 +147,63 @@ function v1ToV2(data: Obj): Obj {
   return { ...data, version: 2, boards };
 }
 
+/** Version 2 to 3: saves get a list of saved starting positions. */
+function v2ToV3(data: Obj): Obj {
+  return { ...data, version: 3, savedPositions: [] };
+}
+
 /** Upgrades older save files, one version at a time. */
 export function migrate(data: Obj, from: number): Obj {
   let out = data;
   if (from < 2) out = v1ToV2(out);
+  if (from < 3) out = v2ToV3(out);
+  return out;
+}
+
+/** Most players a saved team may have; more is not a real file. */
+const MAX_SAVED_PLAYERS = 30;
+
+function readSpots(v: unknown): SavedSpot[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const spots = v
+    .filter(isObj)
+    .slice(0, MAX_SAVED_PLAYERS)
+    .map((s, j) => ({
+      // A little room past the lines, for the run-off.
+      fx: Math.min(1.5, Math.max(-0.5, num(s.fx, 0.5))),
+      fy: Math.min(1.5, Math.max(-0.5, num(s.fy, 0.5))),
+      number: Math.round(num(s.number, j + 1)),
+      name: str(s.name, ''),
+      role: str(s.role, ''),
+    }));
+  return spots.length > 0 ? spots : undefined;
+}
+
+function readSavedPositions(v: unknown): SavedPositions[] {
+  const seen = new Set<string>();
+  const out: SavedPositions[] = [];
+  list(v).forEach((s, i) => {
+    const set: SavedPositions = {
+      id: id(s.id, 's', i),
+      name: str(s.name, `Positions ${i + 1}`),
+      sport: oneOf(s.sport, SPORT_IDS, DEFAULT_SPORT),
+      createdAt: str(s.createdAt, nowIso()),
+    };
+    const home = readSpots(s.home);
+    const away = readSpots(s.away);
+    if (home) set.home = home;
+    if (away) set.away = away;
+    if (isObj(s.ball)) {
+      set.ball = {
+        fx: Math.min(1.5, Math.max(-0.5, num(s.ball.fx, 0.5))),
+        fy: Math.min(1.5, Math.max(-0.5, num(s.ball.fy, 0.5))),
+      };
+    }
+    if (!home && !away) return; // nothing to load
+    if (seen.has(set.id)) set.id = `${set.id}_${i}`;
+    seen.add(set.id);
+    out.push(set);
+  });
   return out;
 }
 
@@ -187,6 +240,7 @@ export function parseSave(text: string): SaveFile {
     name: str(migrated.name, 'My tactics'),
     activeBoardId: boards.some((b) => b.id === active) ? active : boards[0]!.id,
     boards,
+    savedPositions: readSavedPositions(migrated.savedPositions),
     updatedAt: str(migrated.updatedAt, nowIso()),
   };
 }

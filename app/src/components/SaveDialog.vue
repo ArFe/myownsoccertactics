@@ -189,7 +189,7 @@ defineExpose({ pickFile: () => fileInput.value?.click() });
       <div class="bottom">
         <section class="card">
           <h3 class="card-title">Download</h3>
-          <p class="hint">One .json file with the ticked boards and their teams, areas and notes.</p>
+          <p class="hint">One .json file with the ticked boards and their teams, areas and notes, plus all saved positions.</p>
           <button type="button" class="btn primary" :disabled="chosen.length === 0" @click="downloadJson">
             <Icon name="download" />Download {{ chosen.length }} {{ chosen.length === 1 ? 'board' : 'boards' }} (.json)
           </button>

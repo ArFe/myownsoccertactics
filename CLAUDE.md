@@ -27,9 +27,10 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
 # Todo
 
 ## Phase 2 · saved starting positions
-- [ ] Save the current positions of a team (or both) under a name.
-- [ ] Load saved positions onto any board; they live in the save file.
-- [ ] Save file version 2 with a migration from version 1.
+- [x] Save the current positions of a team (or both) under a name.
+- [x] Load saved positions onto any board; they live in the save file.
+- [x] Save file version 3 with a migration from version 2.
+- [x] The ball is saved with a set and turns with the team.
 
 ## Phase 3 · movement
 - [ ] Record steps (keyframes) of all positions; play them back smoothly.

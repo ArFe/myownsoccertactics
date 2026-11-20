@@ -90,6 +90,7 @@ export function createSave(name = 'My tactics'): SaveFile {
     name,
     activeBoardId: board.id,
     boards: [board],
+    savedPositions: [],
     updatedAt: nowIso(),
   };
 }

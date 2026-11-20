@@ -187,3 +187,41 @@ describe('save store', () => {
     expect(s.canUndo).toBe(false);
   });
 });
+
+describe('saved positions in the store', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('saves, loads onto another board, renames and deletes, with undo', () => {
+    const s = freshStore();
+    s.movePlayer(home(s)[0]!.id, 30, 30);
+    s.moveBall(52.5, 34);
+    const id = s.savePositions('  Build-up shape ', ['home', 'away'])!;
+    expect(s.positionSets.map((p) => p.name)).toEqual(['Build-up shape']);
+    expect(s.savePositions('   ', ['home'])).toBeNull();
+
+    s.addBoard('11v11');
+    s.moveBall(10, 10);
+    expect(home(s)[0]!.x).not.toBe(30);
+    s.loadPositions(id, [{ from: 'home', to: 'home' }], { withNames: false, withBall: true });
+    expect(s.board.ball).toMatchObject({ x: 52.5, y: 34 });
+    expect([home(s)[0]!.x, home(s)[0]!.y]).toEqual([30, 30]);
+    s.undo();
+    expect(home(s)[0]!.x).not.toBe(30);
+
+    s.renamePositions(id, 'Shape A');
+    expect(s.positionSets[0]!.name).toBe('Shape A');
+    s.deletePositions(id);
+    expect(s.positionSets).toHaveLength(0);
+    s.undo();
+    expect(s.positionSets).toHaveLength(1);
+  });
+
+  it('adds saved positions from an uploaded file only once', () => {
+    const s = freshStore();
+    const other = createSave('Other');
+    other.savedPositions.push({ id: 'set1', name: 'Corner', sport: 'soccer', home: [{ fx: 0.9, fy: 0.1, number: 9, name: '', role: 'ST' }], createdAt: '' });
+    s.importSave(other, 'add');
+    s.importSave(other, 'add');
+    expect(s.save.savedPositions.map((p) => p.name)).toEqual(['Corner']);
+  });
+});
