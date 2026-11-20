@@ -172,10 +172,13 @@ const HINTS: Partial<Record<Tool, string>> = {
 }
 .tool {
   min-height: 44px;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px;
+  gap: 6px;
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);

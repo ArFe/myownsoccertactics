@@ -24,11 +24,14 @@ const props = withDefaults(
     board: Board;
     width: number;
     maxHeight?: number;
-    /** False for image export: no selection, no editing. */
+    /** False for image export and playback: no selection, no editing. */
     interactive?: boolean;
+    /** Opacity by drawing id (and "ball") while a play fades things in or out. */
+    fade?: Record<string, number>;
   }>(),
-  { maxHeight: Infinity, interactive: true },
+  { maxHeight: Infinity, interactive: true, fade: () => ({}) },
 );
+const opacityOf = (id: string): number => props.fade[id] ?? 1;
 
 const store = useSaveStore();
 const FONT = 'Inter, system-ui, sans-serif';
@@ -111,6 +114,7 @@ const areas = computed(() =>
       dash: a.border === 'dashed' ? [7 * u.value, 5 * u.value] : undefined,
       draggable: canEdit.value,
       strokeScaleEnabled: false,
+      opacity: opacityOf(a.id),
     };
     let shape: Record<string, unknown>;
     if (a.shape === 'rect') {
@@ -143,6 +147,7 @@ const areas = computed(() =>
         shadowBlur: 3,
         shadowOpacity: 0.6,
         listening: false,
+        opacity: opacityOf(a.id),
       },
       handles:
         a.shape === 'polygon' && isSelected('area', a.id) && canEdit.value
@@ -221,6 +226,7 @@ const arrows = computed(() =>
         shadowColor: '#000000',
         shadowBlur: sel ? 8 : 2,
         shadowOpacity: sel ? 0.9 : 0.35,
+        opacity: opacityOf(r.id),
       },
       handles: sel && canEdit.value ? [a, b] : [],
     };
@@ -263,6 +269,7 @@ const texts = computed(() =>
         shadowBlur: 4,
         shadowOpacity: 0.6,
         draggable: canEdit.value,
+        opacity: opacityOf(t.id),
       },
     };
   }),
@@ -284,6 +291,7 @@ const cones = computed(() =>
         stroke: sel ? '#FDE047' : '#FFFFFF',
         strokeWidth: sel ? px(2.5) : px(1.5),
         draggable: canEdit.value,
+        opacity: opacityOf(c.id),
       },
     };
   }),
@@ -303,7 +311,16 @@ const ball = computed(() => {
   const shape = { radiusX: 1, radiusY: ry };
   return {
     oval,
-    group: { id: 'ball', name: 'ball', x: p.x, y: p.y, scaleX: r, scaleY: r, draggable: canEdit.value },
+    group: {
+      id: 'ball',
+      name: 'ball',
+      x: p.x,
+      y: p.y,
+      scaleX: r,
+      scaleY: r,
+      draggable: canEdit.value,
+      opacity: opacityOf('ball'),
+    },
     ring: isSelected('ball', 'ball')
       ? { ...shape, radiusX: 1.35, radiusY: ry + 0.35, stroke: '#FDE047', strokeWidth: 0.2, listening: false }
       : null,

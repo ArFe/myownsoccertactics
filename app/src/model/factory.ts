@@ -87,6 +87,7 @@ export function createBoard(sportId: SportId = DEFAULT_SPORT, presetId?: string,
     arrows: [],
     texts: [],
     cones: [],
+    plays: [],
     updatedAt: nowIso(),
   };
 }
@@ -104,16 +105,32 @@ export function createSave(name = 'My tactics'): SaveFile {
   };
 }
 
-/** Deep copy with fresh ids, for "duplicate board" and imports. */
+/** Deep copy with fresh ids, for "duplicate board" and imports. Plays follow the new ids. */
 export function cloneBoardWithNewIds(board: Board, name = board.name): Board {
   const copy: Board = deepCopy(board);
   copy.id = newId('b');
   copy.name = name;
-  copy.players.forEach((p) => (p.id = newId('p')));
-  copy.areas.forEach((a) => (a.id = newId('a')));
-  copy.arrows.forEach((a) => (a.id = newId('r')));
-  copy.texts.forEach((t) => (t.id = newId('t')));
-  copy.cones.forEach((c) => (c.id = newId('c')));
+  const ids = new Map<string, string>();
+  const renew = (item: { id: string }, prefix: string): void => {
+    const next = newId(prefix);
+    ids.set(item.id, next);
+    item.id = next;
+  };
+  copy.players.forEach((p) => renew(p, 'p'));
+  copy.areas.forEach((a) => renew(a, 'a'));
+  copy.arrows.forEach((a) => renew(a, 'r'));
+  copy.texts.forEach((t) => renew(t, 't'));
+  copy.cones.forEach((c) => renew(c, 'c'));
+  for (const play of copy.plays) {
+    play.id = newId('pl');
+    for (const step of play.steps) {
+      step.id = newId('st');
+      step.players = Object.fromEntries(
+        Object.entries(step.players).flatMap(([id, spot]) => (ids.has(id) ? [[ids.get(id)!, spot]] : [])),
+      );
+      step.hidden = step.hidden.flatMap((id) => (ids.has(id) ? [ids.get(id)!] : []));
+    }
+  }
   copy.updatedAt = nowIso();
   return copy;
 }

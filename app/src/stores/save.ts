@@ -9,6 +9,17 @@ import { applyPositions, capturePositions, type PositionTarget } from '@/model/p
 import type { SportDefinition } from '@/model/sports/types';
 import { clampToField, round, scaleBoardContents, tidy } from '@/model/geometry';
 import { createHistory } from '@/model/history';
+import {
+  MAX_PLAYS,
+  MAX_STEPS,
+  boardAtStep,
+  captureStep,
+  clampSeconds,
+  createPlay as newPlay,
+  drawingIds,
+  frameAt,
+  type Frame,
+} from '@/model/plays';
 import { loadFromStorage, writeToStorage } from '@/model/persistence';
 import type {
   Area,
@@ -17,6 +28,8 @@ import type {
   Board,
   Cone,
   FieldSettings,
+  Play,
+  PlayStep,
   Player,
   SaveFile,
   Team,
@@ -71,6 +84,37 @@ export const useSaveStore = defineStore('save', () => {
   /** The rules of the open board's sport. */
   const sport = computed<SportDefinition>(() => getSport(board.value.sport));
 
+  // ----- the open play (view state, not saved and not undone) -----
+  const openPlayId = ref<string | null>(null);
+  const stepIndex = ref(0);
+  /** Seconds into the open play while it plays back; null when stopped. */
+  const playTime = ref<number | null>(null);
+
+  const openPlay = computed<Play | null>(() => board.value.plays.find((p) => p.id === openPlayId.value) ?? null);
+  const openStep = computed<PlayStep | null>(() => openPlay.value?.steps[stepIndex.value] ?? null);
+
+  /** What the field shows: the board, the open step, or a moment of playback. */
+  const frameNow = computed<Frame>(() => {
+    const play = openPlay.value;
+    if (play && playTime.value !== null) return frameAt(board.value, play, playTime.value);
+    if (openStep.value) return { board: boardAtStep(board.value, openStep.value), fade: {} };
+    return { board: board.value, fade: {} };
+  });
+  const frame = computed(() => frameNow.value.board);
+  const frameFade = computed(() => frameNow.value.fade);
+
+  /** Keeps the open play and step pointing at things that exist. */
+  function checkOpenPlay(): void {
+    const play = openPlay.value;
+    if (!play) {
+      openPlayId.value = null;
+      stepIndex.value = 0;
+      playTime.value = null;
+      return;
+    }
+    stepIndex.value = Math.min(Math.max(0, stepIndex.value), play.steps.length - 1);
+  }
+
   function syncHistoryFlags(): void {
     canUndo.value = history.canUndo();
     canRedo.value = history.canRedo();
@@ -84,6 +128,7 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   function changeBoard(fn: (b: Board) => void, mergeKey?: string): void {
+    playTime.value = null;
     const b = board.value;
     fn(b);
     b.updatedAt = nowIso();
@@ -99,6 +144,7 @@ export const useSaveStore = defineStore('save', () => {
       save.value.activeBoardId = data.boards[0]!.id;
     }
     if (selection.value && !findSelected()) selection.value = null;
+    checkOpenPlay();
     syncHistoryFlags();
   }
 
@@ -140,6 +186,14 @@ export const useSaveStore = defineStore('save', () => {
     save.value.activeBoardId = id;
     selection.value = null;
   }
+  // Another board has its own plays.
+  watch(
+    () => save.value.activeBoardId,
+    () => {
+      openPlayId.value = null;
+      checkOpenPlay();
+    },
+  );
 
   /** Adds a board of the open board's sport, with the given preset. */
   function addBoard(presetId: string): string {
@@ -214,7 +268,8 @@ export const useSaveStore = defineStore('save', () => {
   function savePositions(name: string, sides: TeamSide[], withBall = true): string | null {
     const clean = name.trim();
     if (!clean || sides.length === 0) return null;
-    const set = capturePositions(board.value, sides, clean, withBall);
+    // What the field shows, so a step's places can be saved too.
+    const set = capturePositions(frame.value, sides, clean, withBall);
     save.value.savedPositions.push(set);
     commit();
     return set.id;
@@ -227,7 +282,7 @@ export const useSaveStore = defineStore('save', () => {
   ): void {
     const set = save.value.savedPositions.find((s) => s.id === setId);
     if (!set || set.sport !== board.value.sport) return;
-    changeBoard((b) => applyPositions(b, set, targets, { ...options, runoff: sport.value.runoff(b.field) }));
+    changePositions((b) => applyPositions(b, set, targets, { ...options, runoff: sport.value.runoff(b.field) }));
     if (selection.value?.kind === 'player' && !findSelected()) selection.value = null;
   }
 
@@ -303,7 +358,7 @@ export const useSaveStore = defineStore('save', () => {
   function applyFormation(side: TeamSide, name: string): void {
     const s = sport.value;
     if (!getFormation(s, name)) return;
-    changeBoard((b) => {
+    changePositions((b) => {
       const prev = b.players.filter((p) => p.team === side);
       const next = playersInFormation(s, side, name, b.field, prev);
       b.players = [...b.players.filter((p) => p.team !== side), ...next];
@@ -324,19 +379,141 @@ export const useSaveStore = defineStore('save', () => {
     return snap ? { x: round(c.x, 1), y: round(c.y, 1) } : { x: tidy(c.x), y: tidy(c.y) };
   }
 
+  /** The open step inside the save (not a copy), or null. */
+  function editingStep(): PlayStep | null {
+    return openStep.value;
+  }
+
+  /**
+   * Changes places. With a step open, places go into the step; who is on the
+   * team (names, numbers, team size) still belongs to the board.
+   */
+  function changePositions(fn: (b: Board) => void): void {
+    const step = editingStep();
+    if (!step) return changeBoard(fn);
+    changeBoard((b) => {
+      const seen = boardAtStep(b, step);
+      fn(seen);
+      const base = new Map(b.players.map((p) => [p.id, { x: p.x, y: p.y }]));
+      b.players = seen.players.map((p) => ({ ...p, ...(base.get(p.id) ?? {}) }));
+      b.teams.home.formation = seen.teams.home.formation;
+      b.teams.away.formation = seen.teams.away.formation;
+      const now = captureStep(seen);
+      step.players = now.players;
+      step.ball = now.ball;
+    });
+  }
+
   function movePlayer(id: string, x: number, y: number, snap = false): void {
+    const step = editingStep();
     changeBoard((b) => {
       const p = b.players.find((q) => q.id === id);
-      if (p) Object.assign(p, place(b, x, y, snap));
+      if (!p) return;
+      if (step) step.players[id] = place(b, x, y, snap);
+      else Object.assign(p, place(b, x, y, snap));
     });
   }
 
   function moveBall(x: number, y: number, snap = false): void {
-    changeBoard((b) => Object.assign(b.ball, place(b, x, y, snap), { visible: true }));
+    const step = editingStep();
+    changeBoard((b) => Object.assign(step ? step.ball : b.ball, place(b, x, y, snap), { visible: true }));
   }
 
   function setBallVisible(on: boolean): void {
-    changeBoard((b) => (b.ball.visible = on));
+    const step = editingStep();
+    changeBoard((b) => ((step ? step.ball : b.ball).visible = on));
+  }
+
+  // ----- plays -----
+  function openPlayById(id: string | null): void {
+    openPlayId.value = id;
+    stepIndex.value = 0;
+    playTime.value = null;
+    checkOpenPlay();
+  }
+
+  /** A new play starts with one step: the field as it is now. */
+  function createPlay(name: string): string | null {
+    const clean = name.trim();
+    if (!clean || board.value.plays.length >= MAX_PLAYS) return null;
+    const play = newPlay(frame.value, clean);
+    changeBoard((b) => b.plays.push(play));
+    openPlayById(play.id);
+    return play.id;
+  }
+
+  function renamePlay(id: string, name: string): void {
+    if (!name.trim()) return;
+    changeBoard((b) => {
+      const play = b.plays.find((p) => p.id === id);
+      if (play) play.name = name.trim();
+    });
+  }
+
+  function deletePlay(id: string): void {
+    if (!board.value.plays.some((p) => p.id === id)) return;
+    changeBoard((b) => (b.plays = b.plays.filter((p) => p.id !== id)));
+    checkOpenPlay();
+  }
+
+  function selectStep(i: number): void {
+    playTime.value = null;
+    stepIndex.value = i;
+    checkOpenPlay();
+  }
+
+  /** Adds a step after the open one, starting as a copy of it, and opens it. */
+  function addStep(): void {
+    const play = openPlay.value;
+    const step = openStep.value;
+    if (!play || !step || play.steps.length >= MAX_STEPS) return;
+    const copy = captureStep(boardAtStep(board.value, step), step.hidden);
+    const at = stepIndex.value + 1;
+    changeBoard(() => play.steps.splice(at, 0, copy));
+    stepIndex.value = at;
+  }
+
+  /** A play keeps at least one step. */
+  function deleteStep(i: number): void {
+    const play = openPlay.value;
+    if (!play || play.steps.length <= 1 || !play.steps[i]) return;
+    changeBoard(() => play.steps.splice(i, 1));
+    checkOpenPlay();
+  }
+
+  function setStepDuration(i: number, seconds: number): void {
+    const play = openPlay.value;
+    const step = play?.steps[i];
+    if (!play || !step || !Number.isFinite(seconds)) return;
+    changeBoard(() => (step.duration = clampSeconds(seconds)), `step-duration-${step.id}`);
+  }
+
+  /** Shows or hides a drawing on one step of the open play. */
+  function setDrawingOnStep(drawingId: string, i: number, shown: boolean): void {
+    const step = openPlay.value?.steps[i];
+    if (!step || !drawingIds(board.value).includes(drawingId)) return;
+    const has = !step.hidden.includes(drawingId);
+    if (has === shown) return;
+    changeBoard(() => {
+      step.hidden = shown ? step.hidden.filter((h) => h !== drawingId) : [...step.hidden, drawingId];
+    });
+  }
+
+  /** Shows a drawing on every step of the open play, or only on one. */
+  function setDrawingSteps(drawingId: string, only: number | 'all'): void {
+    const play = openPlay.value;
+    if (!play || !drawingIds(board.value).includes(drawingId)) return;
+    changeBoard(() =>
+      play.steps.forEach((step, i) => {
+        const hide = only !== 'all' && i !== only;
+        step.hidden = step.hidden.filter((h) => h !== drawingId);
+        if (hide) step.hidden.push(drawingId);
+      }),
+    );
+  }
+
+  function setPlayTime(t: number | null): void {
+    playTime.value = t;
   }
 
   /** A new style starts with its own default colours. */
@@ -497,7 +674,7 @@ export const useSaveStore = defineStore('save', () => {
       case 'cone':
         return b.cones.find((x) => x.id === s.id) ?? null;
       case 'ball':
-        return b.ball.visible ? b.ball : null;
+        return frame.value.ball.visible ? b.ball : null;
     }
   }
 
@@ -505,12 +682,17 @@ export const useSaveStore = defineStore('save', () => {
   function deleteSelected(): void {
     const s = selection.value;
     if (!s || s.kind === 'player') return;
+    if (s.kind === 'ball') {
+      setBallVisible(false);
+      selection.value = null;
+      return;
+    }
     changeBoard((b) => {
+      for (const step of b.plays.flatMap((p) => p.steps)) step.hidden = step.hidden.filter((h) => h !== s.id);
       if (s.kind === 'area') b.areas = b.areas.filter((x) => x.id !== s.id);
       if (s.kind === 'arrow') b.arrows = b.arrows.filter((x) => x.id !== s.id);
       if (s.kind === 'text') b.texts = b.texts.filter((x) => x.id !== s.id);
       if (s.kind === 'cone') b.cones = b.cones.filter((x) => x.id !== s.id);
-      if (s.kind === 'ball') b.ball.visible = false;
     });
     selection.value = null;
   }
@@ -523,6 +705,13 @@ export const useSaveStore = defineStore('save', () => {
     save,
     board,
     sport,
+    frame,
+    frameFade,
+    openPlayId,
+    openPlay,
+    openStep,
+    stepIndex,
+    playTime,
     notice,
     selection,
     tool,
@@ -562,6 +751,17 @@ export const useSaveStore = defineStore('save', () => {
     setBallColor,
     setBallSize,
     setPlayerSize,
+    openPlayById,
+    createPlay,
+    renamePlay,
+    deletePlay,
+    selectStep,
+    addStep,
+    deleteStep,
+    setStepDuration,
+    setDrawingOnStep,
+    setDrawingSteps,
+    setPlayTime,
     addArea,
     updateArea,
     moveAreaBy,

@@ -25,7 +25,7 @@ function downloadSave(): void {
 async function downloadPng(): Promise<void> {
   busy.value = true;
   try {
-    await downloadBoardPng(store.board);
+    await downloadBoardPng(store.frame);
   } catch (err) {
     show(err instanceof Error ? err.message : 'The image could not be made.', 'error');
   } finally {
