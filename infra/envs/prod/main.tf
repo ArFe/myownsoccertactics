@@ -85,9 +85,10 @@ variable "domain_name" {
   default = "myowntactics.ca"
 }
 
+# true since 2026-11-20: .ca delegates to Route 53 and the certificate is issued.
 variable "domain_active" {
   type    = bool
-  default = false
+  default = true
 }
 
 resource "aws_route53_zone" "web" {
