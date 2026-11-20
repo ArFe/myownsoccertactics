@@ -13,8 +13,10 @@
   },
   "type": "module",
   "dependencies": {
+    "gifenc": "1.0.3",
     "jszip": "^3.10.2",
     "konva": "^10.9.1",
+    "mediabunny": "1.65.2",
     "pinia": "^4.1.0",
     "vue": "^3.5.45",
     "vue-konva": "^4.0.1"

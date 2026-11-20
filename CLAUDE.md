@@ -21,6 +21,10 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   ball, and the ids of drawings it hides. The field always draws
   `store.frame` (the board, the open step, or a moment of playback), and
   moves made with a step open go into that step, not the board.
+- Plays download frame by frame (`export/animation.ts`): the hidden export
+  stage draws each moment, then gifenc (GIF, 12.5 fps) or Mediabunny
+  (WebM/MP4, 30 fps) encodes it. Mediabunny loads when a play is first
+  opened (to check which formats work); one the browser cannot make is greyed out.
 - All changes to a save go through the store (`stores/save.ts`), so undo and
   autosave see them.
 - Changing the save file shape: bump `SAVE_VERSION` and add a step to
@@ -41,8 +45,8 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
 ## Phase 3 · movement
 - [x] Record steps (keyframes) of all positions; play them back smoothly.
       Named plays per board; drawings can show on some steps only.
-- [ ] Download as GIF (gifenc) and as video (WebM via MediaRecorder, MP4
-      via WebCodecs + mp4-muxer).
+- [x] Download as GIF (gifenc) and as video (WebM and MP4 via WebCodecs +
+      Mediabunny, which replaced the deprecated mp4-muxer).
 
 ## Phase 4 · 3D
 - [ ] 3D view of a board (Three.js via TresJS), orbit camera.

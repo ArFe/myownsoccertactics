@@ -351,3 +351,33 @@ test('records a play in steps, plays it back, and shows a cone on one step only'
   expect(play.steps[1].hidden).toHaveLength(0);
   expect(play.steps[0].hidden).toHaveLength(1);
 });
+
+test('downloads a play as GIF, WebM and MP4', async ({ page }) => {
+  const bar = page.getByTestId('plays');
+  await bar.getByRole('button', { name: 'New play' }).click();
+  await bar.getByRole('button', { name: 'Add step' }).click();
+  const p = (await state(page)).board.players[5]!;
+  await dragWorld(page, [p.x, p.y], [p.x + 15, p.y]);
+  await bar.getByLabel('Seconds to get to step 2').fill('0.5');
+  await bar.getByLabel('Seconds to get to step 2').press('Tab');
+
+  const magic: Record<string, (b: Buffer) => boolean> = {
+    GIF: (b) => b.subarray(0, 6).toString('latin1') === 'GIF89a',
+    WebM: (b) => b.readUInt32BE(0) === 0x1a45dfa3,
+    MP4: (b) => b.subarray(4, 8).toString('latin1') === 'ftyp',
+  };
+  const made: string[] = [];
+  for (const label of ['GIF', 'WebM', 'MP4']) {
+    const button = bar.getByRole('button', { name: label, exact: true });
+    // GIF works everywhere; the videos need WebCodecs with that codec.
+    if (label !== 'GIF' && (await button.isDisabled())) continue;
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), button.click()]);
+    expect(download.suggestedFilename()).toBe(`board-1-play-1.${label.toLowerCase()}`);
+    const bytes = await readFile((await download.path())!);
+    expect(bytes.length).toBeGreaterThan(1000);
+    expect(magic[label]!(bytes), `${label} header`).toBe(true);
+    made.push(label);
+  }
+  console.log('made', made.join(', '));
+  expect(made).toContain('WebM');
+});
