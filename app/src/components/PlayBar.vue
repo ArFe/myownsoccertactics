@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useSaveStore } from '@/stores/save';
 import { MAX_STEP_SECONDS, MIN_STEP_SECONDS, playLength, stepAt, stepTime } from '@/model/plays';
 import { useToasts } from '@/composables/toast';
+import { Cancelled, FORMATS, canMake, type AnimationFormat } from '@/export/animation';
+import { downloadPlay } from '@/export/renderer';
 import Icon from './Icon.vue';
 
 const store = useSaveStore();
@@ -104,6 +106,54 @@ onBeforeUnmount(() => {
   store.setPlayTime(null);
 });
 
+// ----- download as GIF or video -----
+const supported = reactive<Record<AnimationFormat, boolean>>({ gif: true, webm: false, mp4: false });
+// The video check loads the video library, so wait until a play is opened.
+let checked = false;
+watch(
+  play,
+  async (p) => {
+    if (!p || checked) return;
+    checked = true;
+    for (const f of FORMATS) supported[f.id] = await canMake(f.id).catch(() => false);
+  },
+  { immediate: true },
+);
+const making = ref<AnimationFormat | null>(null);
+const progress = ref(0);
+let cancelled = false;
+
+async function download(format: AnimationFormat): Promise<void> {
+  const p = play.value;
+  if (!p || making.value) return;
+  pause();
+  making.value = format;
+  progress.value = 0;
+  cancelled = false;
+  try {
+    await downloadPlay(store.board, p, format, {
+      speed: speed.value,
+      onProgress: (done) => (progress.value = done),
+      isCancelled: () => cancelled,
+    });
+    show(`Downloaded "${p.name}" as ${format.toUpperCase()}.`);
+  } catch (err) {
+    if (!(err instanceof Cancelled)) show(`Could not make the ${format.toUpperCase()}: ${(err as Error).message}`);
+  } finally {
+    making.value = null;
+  }
+}
+
+function cancel(): void {
+  cancelled = true;
+}
+
+function formatTitle(id: AnimationFormat): string | undefined {
+  if (!supported[id]) return 'This browser cannot make this format';
+  if (steps.value.length < 2) return 'Add a second step first';
+  return undefined;
+}
+
 function onDuration(e: Event): void {
   const n = Number((e.target as HTMLInputElement).value);
   if (Number.isFinite(n) && n > 0) store.setStepDuration(store.stepIndex, n);
@@ -202,6 +252,25 @@ function onDuration(e: Event): void {
           <Icon name="trash" :size="14" />Delete step {{ store.stepIndex + 1 }}
         </button>
       </div>
+      <div class="row download">
+        <span class="field-label">Download at {{ speed }}×</span>
+        <button
+          v-for="f in FORMATS"
+          :key="f.id"
+          type="button"
+          class="btn small"
+          :disabled="!!making || playing || !supported[f.id] || steps.length < 2"
+          :title="formatTitle(f.id)"
+          @click="download(f.id)"
+        >
+          <Icon name="download" :size="14" />{{ f.label }}
+        </button>
+      </div>
+      <div v-if="making" class="row making" role="status">
+        <progress :value="progress" max="1" :aria-label="`Making ${making.toUpperCase()}`" />
+        <span class="hint">Making {{ making.toUpperCase() }}… {{ Math.round(progress * 100) }}%</span>
+        <button type="button" class="btn small" @click="cancel">Cancel</button>
+      </div>
       <p class="hint">
         Drag players and the ball to set step {{ shownStep + 1 }}. A new step starts as a copy of the open one.
         Drawings show on every step; pick their steps in the Selection tab.
@@ -254,6 +323,16 @@ function onDuration(e: Event): void {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+.download {
+  align-items: center;
+}
+.making {
+  align-items: center;
+}
+.making progress {
+  flex: 1 1 160px;
+  accent-color: var(--accent);
 }
 .seconds {
   display: flex;
