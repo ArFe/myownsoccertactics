@@ -29,6 +29,12 @@ export function scaleBoardContents(board: Board, sx: number, sy: number): void {
     c.x *= sx;
     c.y *= sy;
   }
+  for (const step of board.plays.flatMap((p) => p.steps)) {
+    for (const spot of [...Object.values(step.players), step.ball]) {
+      spot.x *= sx;
+      spot.y *= sy;
+    }
+  }
 }
 
 /** Keep a point on the field or its run-off (`pad` metres around it). */

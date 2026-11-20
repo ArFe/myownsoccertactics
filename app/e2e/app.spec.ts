@@ -303,3 +303,51 @@ test('changes player size, ball style, colour and size, and the styled ball can 
   expect(board.ball.y).toBeCloseTo(34 + 6, 0);
   await expect(page.locator('#panel-selection').getByLabel('Ball style')).toHaveValue('volleyball');
 });
+
+test('records a play in steps, plays it back, and shows a cone on one step only', async ({ page }) => {
+  const bar = page.getByTestId('plays');
+  await bar.getByRole('button', { name: 'New play' }).click();
+  await bar.getByRole('button', { name: 'Add step' }).click();
+
+  // Move a player on step 2; the board as drawn keeps the old place.
+  const p = (await state(page)).board.players[5]!;
+  await dragWorld(page, [p.x, p.y], [p.x + 15, p.y]);
+  const plays = () =>
+    page.evaluate(() => {
+      const s = (window as any).__tactics.store;
+      return JSON.parse(JSON.stringify({ play: s.openPlay, frame: s.frame, playTime: s.playTime }));
+    });
+  let { play, frame } = await plays();
+  expect(play.steps).toHaveLength(2);
+  expect(play.steps[1].players[p.id].x).toBeCloseTo(p.x + 15, 0);
+  expect((await state(page)).board.players[5]!.x).toBe(p.x);
+  expect(frame.players[5].x).toBeCloseTo(p.x + 15, 0);
+
+  // A cone placed now shows on every step until told otherwise.
+  await page.getByRole('button', { name: 'Cone' }).click();
+  const at = await screenPoint(page, 30, 20);
+  await page.mouse.click(at.x, at.y);
+  await page.getByRole('button', { name: 'Select' }).click();
+  await page.mouse.click(at.x, at.y - 2);
+  await page.getByTestId('step-visibility').getByRole('button', { name: 'Only step 2' }).click();
+  await bar.getByRole('button', { name: 'Step 1', exact: true }).click();
+  ({ frame } = await plays());
+  expect(frame.cones).toHaveLength(0);
+
+  // Play from step 1: it moves, then stops on the last step.
+  await bar.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(bar.getByRole('button', { name: 'Pause' })).toBeVisible();
+  await expect(bar.getByRole('button', { name: 'Play', exact: true })).toBeVisible({ timeout: 6000 });
+  ({ frame } = await plays());
+  expect(frame.players[5].x).toBeCloseTo(p.x + 15, 0);
+  expect(frame.cones).toHaveLength(1);
+  await expect(bar.getByRole('button', { name: 'Step 2', exact: true })).toHaveAttribute('aria-pressed', 'true');
+
+  // The play is in the save.
+  await page.waitForTimeout(700);
+  await page.reload();
+  await bar.getByLabel('Play').selectOption({ label: 'Play 1 · 2 steps' });
+  ({ play } = await plays());
+  expect(play.steps[1].hidden).toHaveLength(0);
+  expect(play.steps[0].hidden).toHaveLength(1);
+});

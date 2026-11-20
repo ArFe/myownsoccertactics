@@ -154,8 +154,8 @@ function remove(): void {
       </button>
     </div>
     <label class="check">
-      <input v-model="saveBall" type="checkbox" :disabled="!store.board.ball.visible" />
-      Include the ball<template v-if="!store.board.ball.visible"> (hidden on this board)</template>
+      <input v-model="saveBall" type="checkbox" :disabled="!store.frame.ball.visible" />
+      Include the ball<template v-if="!store.frame.ball.visible"> (hidden on this board)</template>
     </label>
     <button type="button" class="btn" :disabled="!newName.trim()" @click="save">Save positions</button>
   </section>

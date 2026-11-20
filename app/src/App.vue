@@ -126,12 +126,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
   align-items: stretch;
 }
 .side {
-  flex: 1 1 220px;
+  /* Wide enough for two tool buttons a row ("Rectangle" is the longest). */
+  flex: 1 1 240px;
   display: flex;
 }
 @media (min-width: 1100px) {
   .side {
-    max-width: 250px;
+    max-width: 260px;
   }
 }
 /* On small screens the field comes first. */

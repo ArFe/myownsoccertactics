@@ -1,10 +1,11 @@
 import { BALL_STYLES, BALL_STYLE_IDS, SIZE_IDS } from './balls';
 import { createBoard, createSave, nowIso } from './factory';
 import { clampSize, isKnownPreset } from './field';
+import { MAX_PLAYS, MAX_STEPS, STEP_SECONDS, clampSeconds } from './plays';
 import { DEFAULT_SPORT, SPORT_IDS, getSport } from './sports';
 import type { SportDefinition } from './sports/types';
 import { APP_ID, SAVE_VERSION } from './types';
-import type { Area, Arrow, Board, Cone, FieldSettings, Player, SaveFile, SavedPositions, SavedSpot, Team, TeamSide, TextNote } from './types';
+import type { Area, Arrow, Board, Cone, FieldSettings, Play, PlayStep, Player, SaveFile, SavedPositions, SavedSpot, Team, TeamSide, TextNote } from './types';
 
 export const STORAGE_KEY = 'myownsoccertactics.save';
 export const BROKEN_KEY = 'myownsoccertactics.save.unreadable';
@@ -66,6 +67,49 @@ function readBall(v: Obj, d: Board['ball'], field: FieldSettings): Board['ball']
     colors: Object.fromEntries(BALL_STYLES[style].colors.map((c) => [c.key, color(colors[c.key], c.default)])),
     size: oneOf(v.size, SIZE_IDS, d.size),
   };
+}
+
+function readSpot(v: unknown, d: { x: number; y: number }): { x: number; y: number } {
+  return isObj(v) ? { x: num(v.x, d.x), y: num(v.y, d.y) } : { ...d };
+}
+
+/**
+ * Plays keep only what the board has: steps name players and drawings by id,
+ * so ids the board does not know are dropped.
+ */
+function readPlays(v: unknown, players: Player[], drawingIds: Set<string>, ball: Board['ball']): Play[] {
+  const playerIds = new Set(players.map((p) => p.id));
+  const seen = new Set<string>();
+  const plays: Play[] = [];
+  list(v)
+    .slice(0, MAX_PLAYS)
+    .forEach((p, i) => {
+      const steps: PlayStep[] = list(p.steps)
+        .slice(0, MAX_STEPS)
+        .map((st, j) => {
+          const spots = isObj(st.players) ? st.players : {};
+          const b = isObj(st.ball) ? st.ball : {};
+          return {
+            id: id(st.id, `st${i}`, j),
+            duration: clampSeconds(num(st.duration, STEP_SECONDS)),
+            players: Object.fromEntries(
+              Object.entries(spots)
+                .filter(([pid, spot]) => playerIds.has(pid) && isObj(spot))
+                .map(([pid, spot]) => [pid, readSpot(spot, { x: 0, y: 0 })]),
+            ),
+            ball: { ...readSpot(b, ball), visible: bool(b.visible, ball.visible) },
+            hidden: Array.isArray(st.hidden)
+              ? [...new Set(st.hidden.filter((h): h is string => typeof h === 'string' && drawingIds.has(h)))]
+              : [],
+          };
+        });
+      if (steps.length === 0) return; // a play needs a step
+      const play: Play = { id: id(p.id, 'pl', i), name: str(p.name, `Play ${i + 1}`), steps };
+      if (seen.has(play.id)) play.id = `${play.id}_${i}`;
+      seen.add(play.id);
+      plays.push(play);
+    });
+  return plays;
 }
 
 function readBoard(v: Obj, i: number): Board {
@@ -130,6 +174,10 @@ function readBoard(v: Obj, i: number): Board {
     color: color(c.color, '#F97316'),
   }));
 
+  const keptAreas = areas.filter((a) => a.shape !== 'polygon' || a.points.length >= 6);
+  const readyBall = readBall(ball, d.ball, field);
+  const drawings = new Set([...keptAreas, ...arrows, ...texts, ...cones].map((x) => x.id));
+
   return {
     id: id(v.id, 'b', i),
     name: str(v.name, `Board ${i + 1}`),
@@ -138,11 +186,12 @@ function readBoard(v: Obj, i: number): Board {
     teams: { home: readTeam(teams.home, d.teams.home), away: readTeam(teams.away, d.teams.away) },
     players,
     playerSize: oneOf(v.playerSize, SIZE_IDS, d.playerSize),
-    ball: readBall(ball, d.ball, field),
-    areas: areas.filter((a) => a.shape !== 'polygon' || a.points.length >= 6),
+    ball: readyBall,
+    areas: keptAreas,
     arrows,
     texts,
     cones,
+    plays: readPlays(v.plays, players, drawings, readyBall),
     updatedAt: str(v.updatedAt, nowIso()),
   };
 }
@@ -184,12 +233,21 @@ function v3ToV4(data: Obj): Obj {
   return { ...data, version: 4, boards };
 }
 
+/** Version 4 to 5: boards get a list of plays. */
+function v4ToV5(data: Obj): Obj {
+  const boards = Array.isArray(data.boards)
+    ? data.boards.map((b: unknown) => (isObj(b) ? { ...b, plays: [] } : b))
+    : data.boards;
+  return { ...data, version: 5, boards };
+}
+
 /** Upgrades older save files, one version at a time. */
 export function migrate(data: Obj, from: number): Obj {
   let out = data;
   if (from < 2) out = v1ToV2(out);
   if (from < 3) out = v2ToV3(out);
   if (from < 4) out = v3ToV4(out);
+  if (from < 5) out = v4ToV5(out);
   return out;
 }
 

@@ -5,6 +5,7 @@ import type { Area, AreaBorder, AreaLabel, Arrow, ArrowKind, Cone, Player, TextN
 import { toColorInput } from '@/utils/color';
 import Icon from '../Icon.vue';
 import BallSettings from './BallSettings.vue';
+import StepVisibility from './StepVisibility.vue';
 
 const store = useSaveStore();
 const nameInput = ref<HTMLInputElement | null>(null);
@@ -16,6 +17,8 @@ const arrow = computed(() => (kind.value === 'arrow' ? (item.value as Arrow) : n
 const player = computed(() => (kind.value === 'player' ? (item.value as Player) : null));
 const note = computed(() => (kind.value === 'text' ? (item.value as TextNote) : null));
 const cone = computed(() => (kind.value === 'cone' ? (item.value as Cone) : null));
+/** Drawings can be shown on some steps of a play only. */
+const drawingId = computed(() => (area.value ?? arrow.value ?? note.value ?? cone.value)?.id ?? null);
 
 const SHAPE_LABEL = { rect: 'Rectangle', ellipse: 'Ellipse', polygon: 'Polygon' } as const;
 const COLOR_NAMES = ['Yellow', 'Red', 'Blue', 'Green', 'Purple', 'White', 'Black'];
@@ -241,6 +244,8 @@ defineExpose({ focusName });
         <button type="button" class="btn danger" @click="store.deleteSelected()">Hide ball</button>
       </div>
     </template>
+
+    <StepVisibility v-if="drawingId" :key="drawingId" :drawing-id="drawingId" />
   </div>
 </template>
 

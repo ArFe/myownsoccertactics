@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useSaveStore } from '@/stores/save';
 import { fieldLabel } from '@/model/field';
 import PitchStage from './PitchStage.vue';
+import PlayBar from './PlayBar.vue';
 
 const store = useSaveStore();
 const host = ref<HTMLElement | null>(null);
@@ -57,17 +58,25 @@ defineExpose({
       <button
         type="button"
         class="btn"
-        :aria-pressed="store.board.ball.visible"
-        @click="store.setBallVisible(!store.board.ball.visible)"
+        :aria-pressed="store.frame.ball.visible"
+        @click="store.setBallVisible(!store.frame.ball.visible)"
       >
-        Ball: {{ store.board.ball.visible ? 'on' : 'off' }}
+        Ball: {{ store.frame.ball.visible ? 'on' : 'off' }}
       </button>
     </div>
     <div ref="host" class="stage-host">
       <div class="stage-frame" data-testid="pitch">
-        <PitchStage ref="stage" :board="store.board" :width="width" :max-height="maxHeight" />
+        <PitchStage
+          ref="stage"
+          :board="store.frame"
+          :fade="store.frameFade"
+          :interactive="store.playTime === null"
+          :width="width"
+          :max-height="maxHeight"
+        />
       </div>
     </div>
+    <PlayBar />
     <p class="hint tips">Drag to move · double-click a player to rename · Shift while dragging snaps to 1 m · Del removes the selected item</p>
   </main>
 </template>

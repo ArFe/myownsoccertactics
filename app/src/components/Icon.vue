@@ -20,6 +20,11 @@ const PATHS = {
   up: 'm6 15 6-6 6 6',
   down: 'm6 9 6 6 6-6',
   save: 'M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM7 3v6h8V3M7 21v-7h10v7',
+  play: 'M7 4v16l13-8z',
+  pause: 'M7 4v16M17 4v16',
+  prev: 'M6 5v14M19 5 9 12l10 7z',
+  next: 'M18 5v14M5 5l10 7-10 7z',
+  edit: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
   warn: 'M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
 } as Record<string, string>;
 

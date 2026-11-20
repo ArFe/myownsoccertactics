@@ -124,7 +124,34 @@ export interface Board {
   arrows: Arrow[];
   texts: TextNote[];
   cones: Cone[];
+  /** Named step-by-step moves of the players and the ball. */
+  plays: Play[];
   updatedAt: string;
+}
+
+/** A place on the field, in metres. */
+export interface Spot {
+  x: number;
+  y: number;
+}
+
+/** One step of a play: where everyone stands, and which drawings show. */
+export interface PlayStep {
+  id: string;
+  /** Seconds to move here from the step before. Not used on the first step. */
+  duration: number;
+  /** By player id. A player missing here stands where the board has them. */
+  players: Record<string, Spot>;
+  ball: Spot & { visible: boolean };
+  /** Ids of areas, arrows, notes and cones not shown on this step. */
+  hidden: string[];
+}
+
+export interface Play {
+  id: string;
+  name: string;
+  /** Always at least one step. */
+  steps: PlayStep[];
 }
 
 export const APP_ID = 'myownsoccertactics';
@@ -134,8 +161,9 @@ export const APP_ID = 'myownsoccertactics';
  * 2. Boards have a `sport`; `field.grassColor` became `field.surfaceColor`.
  * 3. Saves have `savedPositions` (named starting positions).
  * 4. Boards have `playerSize`; the ball has `style`, `colors` and `size`.
+ * 5. Boards have `plays` (steps of player and ball moves).
  */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 /**
  * One player's place in a saved set. fx and fy are fractions of the field

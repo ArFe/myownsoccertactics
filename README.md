@@ -16,6 +16,10 @@ A web app to draw and explain soccer tactics. It runs fully in the browser.
   and load them onto any board of the same sport. They are kept as fractions
   of the field, so they fit any field size; a home set loaded onto the away
   team is turned around. The ball is saved and loaded with them.
+- Plays: record named moves step by step (players and the ball), then play
+  them back smoothly at 0.5×, 1× or 2×. Each step sets how long it takes
+  to get there. Areas, arrows, notes and cones can show on some steps only;
+  they fade in and out.
 - Download a board as a PNG, or all boards as a zip of PNGs.
 
 ## Run it locally
