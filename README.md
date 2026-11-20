@@ -20,6 +20,8 @@ A web app to draw and explain soccer tactics. It runs fully in the browser.
   them back smoothly at 0.5×, 1× or 2×. Each step sets how long it takes
   to get there. Areas, arrows, notes and cones can show on some steps only;
   they fade in and out. Download a play as a GIF, WebM or MP4.
+- 3D view: switch any board to 3D and turn around it, or see it through a
+  player's eyes and look around. Plays run in 3D too.
 - Download a board as a PNG, or all boards as a zip of PNGs.
 
 ## Run it locally

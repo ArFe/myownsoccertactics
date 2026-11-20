@@ -24,6 +24,8 @@ export interface MarkingDims {
   spotDistance: number;
   goalWidth: number;
   goalDepth: number;
+  /** Crossbar height, for the 3D view. */
+  goalHeight: number;
   cornerRadius: number;
 }
 
@@ -36,6 +38,7 @@ const DIMS_11: MarkingDims = {
   spotDistance: 11,
   goalWidth: 7.32,
   goalDepth: 1.6,
+  goalHeight: 2.44,
   cornerRadius: 1,
 };
 
@@ -51,6 +54,8 @@ const DIMS_7: MarkingDims = {
   spotDistance: 8,
   goalWidth: 5.5,
   goalDepth: 1.2,
+  // Youth 7v7 goals are 6 x 18 ft.
+  goalHeight: 1.83,
   cornerRadius: 0.7,
 };
 
@@ -152,5 +157,5 @@ export function drawSoccerField(field: FieldSettings): FieldDrawing {
     for (let i = 0; i < count; i += 2) stripes.push({ x: i * sw, y: 0, w: sw, h: W });
   }
 
-  return { lines, goals, spots, stripes };
+  return { lines, goals, goalHeight: d.goalHeight, spots, stripes };
 }

@@ -25,6 +25,12 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   stage draws each moment, then gifenc (GIF, 12.5 fps) or Mediabunny
   (WebM/MP4, 30 fps) encodes it. Mediabunny loads when a play is first
   opened (to check which formats work); one the browser cannot make is greyed out.
+- The 3D view is plain Three.js in `three/`, shown by the 2D/3D switch.
+  `SceneSync` keeps the scene in step with `store.frame`: objects are built
+  again only when they look different, and players and the ball just move,
+  so plays run in 3D too. Goal height comes from the sport's drawing
+  (`goalHeight`). Players and the ball are drawn 1.5× life size, or they
+  vanish on a full field. Editing stays in 2D.
 - All changes to a save go through the store (`stores/save.ts`), so undo and
   autosave see them.
 - Changing the save file shape: bump `SAVE_VERSION` and add a step to
@@ -49,8 +55,8 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
       Mediabunny, which replaced the deprecated mp4-muxer).
 
 ## Phase 4 · 3D
-- [ ] 3D view of a board (Three.js via TresJS), orbit camera.
-- [ ] Player's-eye camera.
+- [x] 3D view of a board, orbit camera. Plain Three.js, not TresJS.
+- [x] Player's-eye camera: pick a player, free look by dragging.
 
 ## Game day · substitutes
 Both items change the save file shape: one `SAVE_VERSION` bump and one

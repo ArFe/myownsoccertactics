@@ -18,12 +18,14 @@
     "konva": "^10.9.1",
     "mediabunny": "1.65.2",
     "pinia": "^4.1.0",
+    "three": "0.187.0",
     "vue": "^3.5.45",
     "vue-konva": "^4.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
     "@types/node": "^22.20.5",
+    "@types/three": "0.187.0",
     "@vitejs/plugin-vue": "^6.0.11",
     "jsdom": "^31.0.1",
     "typescript": "^6.0.3",

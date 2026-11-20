@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useSaveStore } from '@/stores/save';
 import { fieldLabel } from '@/model/field';
 import PitchStage from './PitchStage.vue';
 import PlayBar from './PlayBar.vue';
+
+// Three.js is big, so the 3D view loads the first time it is opened.
+const Pitch3D = defineAsyncComponent(() => import('./Pitch3D.vue'));
+const view = ref<'2d' | '3d'>('2d');
 
 const store = useSaveStore();
 const host = ref<HTMLElement | null>(null);
@@ -52,6 +56,10 @@ defineExpose({
         />
       </label>
       <span class="chip">{{ sizeLabel }}</span>
+      <div class="seg view-switch" role="group" aria-label="View">
+        <button type="button" :aria-pressed="view === '2d'" @click="view = '2d'">2D</button>
+        <button type="button" :aria-pressed="view === '3d'" @click="view = '3d'">3D</button>
+      </div>
       <button type="button" class="btn" :aria-pressed="namesOn" @click="store.setNamesVisible(!namesOn)">
         Names: {{ namesOn ? 'on' : 'off' }}
       </button>
@@ -65,7 +73,14 @@ defineExpose({
       </button>
     </div>
     <div ref="host" class="stage-host">
-      <div class="stage-frame" data-testid="pitch">
+      <Pitch3D
+        v-if="view === '3d'"
+        :board="store.frame"
+        :fade="store.frameFade"
+        :width="width"
+        :max-height="maxHeight"
+      />
+      <div v-else class="stage-frame" data-testid="pitch">
         <PitchStage
           ref="stage"
           :board="store.frame"
@@ -77,7 +92,8 @@ defineExpose({
       </div>
     </div>
     <PlayBar />
-    <p class="hint tips">Drag to move · double-click a player to rename · Shift while dragging snaps to 1 m · Del removes the selected item</p>
+    <p v-if="view === '3d'" class="hint tips">The 3D view shows the board and its plays. Switch to 2D to edit.</p>
+    <p v-else class="hint tips">Drag to move · double-click a player to rename · Shift while dragging snaps to 1 m · Del removes the selected item</p>
   </main>
 </template>
 
@@ -129,6 +145,9 @@ defineExpose({
   color: var(--accent-dark);
   font-size: 13px;
   font-weight: 600;
+}
+.view-switch {
+  width: 120px;
 }
 .stage-host {
   width: 100%;
