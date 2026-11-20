@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { dataUrlToBlob, fileSlug, uniqueNames } from '@/export/download';
+import { dataUrlToBlob, fileSlug, stampedName, timeStamp, uniqueNames } from '@/export/download';
 import { hexToRgba, toColorInput } from '@/utils/color';
 
 describe('file names', () => {
+  it('stamp downloads with the local date and time, to the second', () => {
+    const at = new Date(2026, 0, 5, 9, 4, 3); // 5 Jan 2026, 09:04:03 local
+    expect(timeStamp(at)).toBe('2026-01-05_09-04-03');
+    expect(stampedName('build-up', 'png', at)).toBe('build-up_2026-01-05_09-04-03.png');
+    expect(stampedName('my-tactics', 'tactics.json', at)).toBe('my-tactics_2026-01-05_09-04-03.tactics.json');
+  });
+
   it('makes safe slugs', () => {
     expect(fileSlug('Build-up vs 4-4-2')).toBe('build-up-vs-4-4-2');
     expect(fileSlug('Ataque São Paulo!')).toBe('ataque-sao-paulo');

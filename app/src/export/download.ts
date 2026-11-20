@@ -10,6 +10,23 @@ export function fileSlug(name: string, fallback = 'tactics'): string {
   return slug || fallback;
 }
 
+/**
+ * Local date and time for file names, to the second, so two downloads never
+ * overwrite each other and sort in order: "2026-11-19_23-45-07".
+ */
+export function timeStamp(date = new Date()): string {
+  const p = (n: number): string => String(n).padStart(2, '0');
+  return (
+    `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}` +
+    `_${p(date.getHours())}-${p(date.getMinutes())}-${p(date.getSeconds())}`
+  );
+}
+
+/** "build-up" + "png" -> "build-up_2026-11-19_23-45-07.png". */
+export function stampedName(base: string, ext: string, date = new Date()): string {
+  return `${base}_${timeStamp(date)}.${ext}`;
+}
+
 /** Makes unique names inside one zip: a.png, a-2.png, a-3.png. */
 export function uniqueNames(names: string[]): string[] {
   const used = new Map<string, number>();

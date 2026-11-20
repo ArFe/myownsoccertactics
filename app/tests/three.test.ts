@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createBoard } from '@/model/factory';
 import { getSport } from '@/model/sports';
-import { buildGoal, figureKey, ribbon, to3 } from '@/three/builders';
+import { buildGoal, figureKey, ribbon, to3, wrapWords } from '@/three/builders';
 import { EYE_FOV, lookAt, lookTarget, orbitStart, turn, zoomFov, MAX_PITCH } from '@/three/cameras';
 import { SceneSync } from '@/three/sync';
 
@@ -43,6 +43,15 @@ describe('3D shapes', () => {
     // The mouth is on the goal line, at x = 0 (-52.5 in the scene).
     expect(top.max.x).toBeCloseTo(-52.5, 0);
     expect(getSport('soccer').drawField(createBoard('soccer', '7v7').field).goalHeight).toBe(1.83);
+  });
+});
+
+describe('note wrapping in 3D', () => {
+  it('breaks at spaces, keeps typed line breaks, and cuts a word too long for a line', () => {
+    expect(wrapWords('Press high when their keeper has the ball', 20)).toEqual(['Press high when', 'their keeper has the', 'ball']);
+    expect(wrapWords('One\nTwo', 20)).toEqual(['One', 'Two']);
+    expect(wrapWords('abcdefghij', 4)).toEqual(['abcd', 'efgh', 'ij']);
+    expect(wrapWords('Short')).toEqual(['Short']);
   });
 });
 

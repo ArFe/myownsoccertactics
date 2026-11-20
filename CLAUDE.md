@@ -31,6 +31,8 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   so plays run in 3D too. Goal height comes from the sport's drawing
   (`goalHeight`). Players and the ball are drawn 1.5× life size, or they
   vanish on a full field. Editing stays in 2D.
+- Download names go through `stampedName()` in `export/download.ts`
+  (`name_YYYY-MM-DD_HH-MM-SS.ext`); use it for any new download.
 - All changes to a save go through the store (`stores/save.ts`), so undo and
   autosave see them.
 - Changing the save file shape: bump `SAVE_VERSION` and add a step to
@@ -82,6 +84,8 @@ Both items change the save file shape: one `SAVE_VERSION` bump and one
         Times as match minutes, or as a live clock during the game?
 
 ## Small things seen in Phase 1
-- [ ] PNG export has no title; add the board name as an option.
-- [ ] Zoom in and out on the field (in the mockup, not built).
-- [ ] Long text notes can run off the field edge; wrap them.
+- [x] PNG export has no title; add the board name as an option.
+- [x] Zoom in and out on the field (in the mockup, not built).
+- [x] Long text notes can run off the field edge; wrap them.
+- [x] Every download's name ends with the local date and time, so files
+      never overwrite each other.

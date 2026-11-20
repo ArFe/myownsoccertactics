@@ -88,7 +88,7 @@ const HINTS: Partial<Record<Tool, string>> = {
 
     <section class="keys">
       <span class="keys-title">Keyboard</span>
-      <span>V select · R rect · E ellipse · P polygon · A arrow · T text · C cone · B ball · Del remove · Ctrl+Z undo · Shift while dragging snaps to 1 m</span>
+      <span>V select · R rect · E ellipse · P polygon · A arrow · T text · C cone · B ball · Del remove · + − 0 zoom · Ctrl+Z undo · Shift while dragging snaps to 1 m</span>
     </section>
   </nav>
 </template>

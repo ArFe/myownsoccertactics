@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useExportPrefs } from '@/composables/exportPrefs';
 import { useSaveStore } from '@/stores/save';
 import { serializeSave } from '@/model/persistence';
-import { downloadBlob, fileSlug } from '@/export/download';
+import { downloadBlob, fileSlug, stampedName } from '@/export/download';
 import { downloadBoardPng } from '@/export/renderer';
 import { useToasts } from '@/composables/toast';
 import Icon from './Icon.vue';
@@ -11,6 +12,25 @@ const emit = defineEmits<{ 'open-save': []; upload: [] }>();
 const store = useSaveStore();
 const { show } = useToasts();
 const busy = ref(false);
+const { pngTitle } = useExportPrefs();
+const pngMenu = ref(false);
+const pngWrap = ref<HTMLElement | null>(null);
+
+// The PNG options close on a click outside them, or Escape.
+function onDocClick(e: MouseEvent): void {
+  if (pngMenu.value && !pngWrap.value?.contains(e.target as Node)) pngMenu.value = false;
+}
+function onKey(e: KeyboardEvent): void {
+  if (e.key === 'Escape') pngMenu.value = false;
+}
+onMounted(() => {
+  document.addEventListener('click', onDocClick);
+  document.addEventListener('keydown', onKey);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick);
+  document.removeEventListener('keydown', onKey);
+});
 
 const status = computed(() => {
   if (store.storageFailed) return { ok: false, text: 'Not saved: browser storage is full or blocked' };
@@ -19,13 +39,13 @@ const status = computed(() => {
 
 function downloadSave(): void {
   const blob = new Blob([serializeSave(store.save)], { type: 'application/json' });
-  downloadBlob(blob, `${fileSlug(store.save.name)}.tactics.json`);
+  downloadBlob(blob, stampedName(fileSlug(store.save.name), 'tactics.json'));
 }
 
 async function downloadPng(): Promise<void> {
   busy.value = true;
   try {
-    await downloadBoardPng(store.frame);
+    await downloadBoardPng(store.frame, { title: pngTitle.value });
   } catch (err) {
     show(err instanceof Error ? err.message : 'The image could not be made.', 'error');
   } finally {
@@ -66,7 +86,24 @@ async function downloadPng(): Promise<void> {
       <span class="divider" />
       <button type="button" class="btn" @click="emit('upload')"><Icon name="upload" />Upload save</button>
       <button type="button" class="btn" @click="downloadSave"><Icon name="download" />Download save</button>
-      <button type="button" class="btn primary" :disabled="busy" @click="downloadPng"><Icon name="image" />Download PNG</button>
+      <div ref="pngWrap" class="png">
+        <button type="button" class="btn primary png-main" :disabled="busy" @click="downloadPng">
+          <Icon name="image" />Download PNG
+        </button>
+        <button
+          type="button"
+          class="btn primary png-more"
+          aria-label="PNG options"
+          :aria-expanded="pngMenu"
+          @click="pngMenu = !pngMenu"
+        >
+          <Icon name="down" :size="16" />
+        </button>
+        <div v-if="pngMenu" class="png-menu" role="group" aria-label="PNG options">
+          <label class="check"><input v-model="pngTitle" type="checkbox" />Board name as a title</label>
+          <p class="hint">Also used for the zip of all boards. Remembered in this browser.</p>
+        </div>
+      </div>
     </div>
   </header>
 </template>
@@ -142,5 +179,36 @@ async function downloadPng(): Promise<void> {
   width: 1px;
   height: 28px;
   background: var(--border);
+}
+
+.png {
+  position: relative;
+  display: flex;
+}
+.png-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.png-more {
+  width: 36px;
+  padding: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+}
+.png-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
 }
 </style>

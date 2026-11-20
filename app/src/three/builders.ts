@@ -237,7 +237,7 @@ export function textSprite(
   lines: { text: string; size: number; bold?: boolean }[],
   color: string,
   height: number,
-  options: { badge?: { fill: string } } = {},
+  options: { badge?: { fill: string }; oneColor?: boolean } = {},
 ): THREE.Sprite {
   const scale = 4; // canvas pixels per label pixel, for sharp text
   const pad = 6;
@@ -275,7 +275,7 @@ export function textSprite(
         ctx.lineWidth = 3;
         ctx.strokeStyle = 'rgba(0,0,0,0.65)';
         ctx.strokeText(l.text, w / 2, y + 1);
-        ctx.fillStyle = i === 0 ? color : '#FFFFFF';
+        ctx.fillStyle = i === 0 || options.oneColor ? color : '#FFFFFF';
       }
       ctx.fillText(l.text, w / 2, y + 1);
       y += l.size * 1.25;
@@ -475,8 +475,36 @@ export function buildArrow(board: Board, r: Arrow): THREE.Object3D {
   return g;
 }
 
+/** Splits text into lines of at most `max` characters, at spaces where it can. */
+export function wrapWords(text: string, max = 28): string[] {
+  const out: string[] = [];
+  for (const para of text.split('\n')) {
+    let line = '';
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      if (line && line.length + 1 + word.length > max) {
+        out.push(line);
+        line = '';
+      }
+      line = line ? `${line} ${word}` : word;
+      // A single word longer than a line is cut.
+      while (line.length > max) {
+        out.push(line.slice(0, max));
+        line = line.slice(max);
+      }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
 export function buildText(board: Board, t: TextNote): THREE.Object3D {
-  const s = textSprite([{ text: t.text, size: 18, bold: true }], t.color, t.size * 1.4);
+  const lines = wrapWords(t.text);
+  const s = textSprite(
+    lines.map((text) => ({ text: text || ' ', size: 18, bold: true })),
+    t.color,
+    t.size * 1.4 * lines.length,
+    { oneColor: true },
+  );
   s.position.copy(to3(board, t.x, t.y)).setY(0.2);
   return s;
 }
