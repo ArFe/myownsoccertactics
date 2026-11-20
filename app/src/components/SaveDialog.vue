@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useSaveStore, type ImportMode } from '@/stores/save';
+import { presetLabel } from '@/model/field';
+import { getSport } from '@/model/sports';
 import { parseSave, serializeSave, SaveFormatError } from '@/model/persistence';
 import { downloadBlob, fileSlug } from '@/export/download';
 import { downloadBoardsZip } from '@/export/renderer';
@@ -171,7 +173,7 @@ defineExpose({ pickFile: () => fileInput.value?.click() });
             <span role="cell" class="name">
               <button type="button" class="link" @click="store.setActiveBoard(b.id); emit('close')">{{ b.name || 'Untitled board' }}</button>
             </span>
-            <span role="cell" class="muted">{{ b.field.preset }}</span>
+            <span role="cell" class="muted">{{ presetLabel(getSport(b.sport), b.field.preset) }}</span>
             <span role="cell" class="muted">{{ itemsLabel(b) }}</span>
             <span role="cell" class="muted">{{ changedLabel(b.updatedAt) }}</span>
             <span role="cell" class="row-actions">

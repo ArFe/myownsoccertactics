@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia';
 import { computed, ref, watch } from 'vue';
 import { cloneBoardWithNewIds, createBoard, deepCopy, newId, nowIso, playersInFormation } from '@/model/factory';
-import { PRESET_SIZES, clampSize, createField } from '@/model/field';
-import { DEFAULT_FORMATIONS, getFormation } from '@/model/formations';
+import { clampSize, createField, presetDef } from '@/model/field';
+import { getFormation } from '@/model/formations';
+import { getSport } from '@/model/sports';
+import type { SportDefinition } from '@/model/sports/types';
 import { clampToField, round, scaleBoardContents, tidy } from '@/model/geometry';
 import { createHistory } from '@/model/history';
 import { loadFromStorage, writeToStorage } from '@/model/persistence';
@@ -12,15 +14,14 @@ import type {
   ArrowKind,
   Board,
   Cone,
-  FieldPreset,
   FieldSettings,
-  Markings,
   Player,
   SaveFile,
   Team,
   TeamSide,
   TextNote,
 } from '@/model/types';
+import { CUSTOM_PRESET } from '@/model/types';
 
 export type Tool = 'select' | 'rect' | 'ellipse' | 'polygon' | 'arrow' | 'text' | 'cone' | 'ball';
 export type SelectionKind = 'player' | 'area' | 'arrow' | 'text' | 'cone' | 'ball';
@@ -65,6 +66,8 @@ export const useSaveStore = defineStore('save', () => {
   const board = computed<Board>(
     () => save.value.boards.find((b) => b.id === save.value.activeBoardId) ?? save.value.boards[0]!,
   );
+  /** The rules of the open board's sport. */
+  const sport = computed<SportDefinition>(() => getSport(board.value.sport));
 
   function syncHistoryFlags(): void {
     canUndo.value = history.canUndo();
@@ -135,8 +138,9 @@ export const useSaveStore = defineStore('save', () => {
     selection.value = null;
   }
 
-  function addBoard(preset: Exclude<FieldPreset, 'custom'>): string {
-    const b = createBoard(preset, `Board ${save.value.boards.length + 1}`);
+  /** Adds a board of the open board's sport, with the given preset. */
+  function addBoard(presetId: string): string {
+    const b = createBoard(board.value.sport, presetId, `Board ${save.value.boards.length + 1}`);
     save.value.boards.push(b);
     save.value.activeBoardId = b.id;
     selection.value = null;
@@ -196,22 +200,23 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   // ----- field -----
-  function setPreset(preset: Exclude<FieldPreset, 'custom'>): void {
+  function setPreset(presetId: string): void {
+    const s = sport.value;
+    const preset = presetDef(s, presetId);
+    if (!preset) return;
     changeBoard((b) => {
-      const size = PRESET_SIZES[preset];
-      const teamSize = preset === '7v7' ? 7 : 11;
-      const fresh = createField(preset);
-      const keep = { orientation: b.field.orientation, grassColor: b.field.grassColor, lineColor: b.field.lineColor };
-      scaleBoardContents(b, size.length / b.field.length, size.width / b.field.width);
+      const fresh = createField(s, preset.id);
+      const keep = { orientation: b.field.orientation, surfaceColor: b.field.surfaceColor, lineColor: b.field.lineColor };
+      scaleBoardContents(b, preset.length / b.field.length, preset.width / b.field.width);
       b.field = { ...fresh, ...keep };
-      // Moving between 11v11 and 7v7 changes the team size: use that size's
-      // default formations and keep names in order.
+      // A preset with another team size (11v11 to 7v7) gets that preset's
+      // default formations; names are kept in order.
       for (const side of ['home', 'away'] as const) {
-        if (b.players.filter((p) => p.team === side).length !== teamSize) {
-          const formation = DEFAULT_FORMATIONS[teamSize][side];
+        if (b.players.filter((p) => p.team === side).length !== preset.teamSize) {
+          const formation = preset.defaultFormations[side];
           b.teams[side].formation = formation;
           const prev = b.players.filter((p) => p.team === side);
-          const next = playersInFormation(side, formation, b.field, prev);
+          const next = playersInFormation(s, side, formation, b.field, prev);
           b.players = [...b.players.filter((p) => p.team !== side), ...next];
         }
       }
@@ -219,22 +224,22 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   function setFieldSize(length: number, width: number): void {
-    const L = clampSize(length);
-    const W = clampSize(width);
+    const L = clampSize(sport.value, length);
+    const W = clampSize(sport.value, width);
     changeBoard((b) => {
       if (L === b.field.length && W === b.field.width) return;
       scaleBoardContents(b, L / b.field.length, W / b.field.width);
       b.field.length = L;
       b.field.width = W;
-      b.field.preset = 'custom';
+      b.field.preset = CUSTOM_PRESET;
     }, `field-size-${board.value.id}`);
   }
 
-  function updateField(patch: Partial<Pick<FieldSettings, 'orientation' | 'grassColor' | 'lineColor'>>): void {
+  function updateField(patch: Partial<Pick<FieldSettings, 'orientation' | 'surfaceColor' | 'lineColor'>>): void {
     changeBoard((b) => Object.assign(b.field, patch), `field-${Object.keys(patch).join()}`);
   }
 
-  function setMarking(key: keyof Markings, on: boolean): void {
+  function setMarking(key: string, on: boolean): void {
     changeBoard((b) => (b.field.markings[key] = on));
   }
 
@@ -251,10 +256,11 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   function applyFormation(side: TeamSide, name: string): void {
-    if (!getFormation(name)) return;
+    const s = sport.value;
+    if (!getFormation(s, name)) return;
     changeBoard((b) => {
       const prev = b.players.filter((p) => p.team === side);
-      const next = playersInFormation(side, name, b.field, prev);
+      const next = playersInFormation(s, side, name, b.field, prev);
       b.players = [...b.players.filter((p) => p.team !== side), ...next];
       b.teams[side].formation = name;
     });
@@ -269,7 +275,7 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   function place(b: Board, x: number, y: number, snap: boolean): { x: number; y: number } {
-    const c = clampToField(b.field, x, y);
+    const c = clampToField(b.field, getSport(b.sport).runoff(b.field), x, y);
     return snap ? { x: round(c.x, 1), y: round(c.y, 1) } : { x: tidy(c.x), y: tidy(c.y) };
   }
 
@@ -449,6 +455,7 @@ export const useSaveStore = defineStore('save', () => {
   return {
     save,
     board,
+    sport,
     notice,
     selection,
     tool,

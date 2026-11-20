@@ -1,5 +1,7 @@
 import { createBoard, createSave, nowIso } from './factory';
-import { MAX_SIZE, MIN_SIZE, clampSize } from './field';
+import { clampSize, isKnownPreset } from './field';
+import { DEFAULT_SPORT, SPORT_IDS, getSport } from './sports';
+import type { SportDefinition } from './sports/types';
 import { APP_ID, SAVE_VERSION } from './types';
 import type { Area, Arrow, Board, Cone, FieldSettings, Player, SaveFile, Team, TeamSide, TextNote } from './types';
 
@@ -22,23 +24,20 @@ const list = (v: unknown): Obj[] => (Array.isArray(v) ? v.filter(isObj) : []);
 const id = (v: unknown, prefix: string, i: number): string =>
   typeof v === 'string' && v.length > 0 ? v : `${prefix}_${i}`;
 
-function readField(v: unknown, d: FieldSettings): FieldSettings {
+function readField(v: unknown, d: FieldSettings, sport: SportDefinition): FieldSettings {
   if (!isObj(v)) return d;
   const m = isObj(v.markings) ? v.markings : {};
+  const markings: FieldSettings['markings'] = {};
+  // Only the sport's own marking keys are kept.
+  for (const def of sport.markings) markings[def.key] = bool(m[def.key], d.markings[def.key] ?? def.default);
   return {
-    preset: oneOf(v.preset, ['11v11', '7v7', 'custom'] as const, d.preset),
-    length: clampSize(num(v.length, d.length)),
-    width: clampSize(num(v.width, d.width)),
+    preset: typeof v.preset === 'string' && isKnownPreset(sport, v.preset) ? v.preset : d.preset,
+    length: clampSize(sport, num(v.length, d.length)),
+    width: clampSize(sport, num(v.width, d.width)),
     orientation: oneOf(v.orientation, ['horizontal', 'vertical'] as const, d.orientation),
-    grassColor: color(v.grassColor, d.grassColor),
+    surfaceColor: color(v.surfaceColor, d.surfaceColor),
     lineColor: color(v.lineColor, d.lineColor),
-    markings: {
-      penaltyAreas: bool(m.penaltyAreas, d.markings.penaltyAreas),
-      goalAreas: bool(m.goalAreas, d.markings.goalAreas),
-      centreCircle: bool(m.centreCircle, d.markings.centreCircle),
-      buildOutLines: bool(m.buildOutLines, d.markings.buildOutLines),
-      stripes: bool(m.stripes, d.markings.stripes),
-    },
+    markings,
   };
 }
 
@@ -55,9 +54,10 @@ function readTeam(v: unknown, d: Team): Team {
 }
 
 function readBoard(v: Obj, i: number): Board {
-  const preset = isObj(v.field) && v.field.preset === '7v7' ? '7v7' : '11v11';
-  const d = createBoard(preset);
-  const field = readField(v.field, d.field);
+  const sport = getSport(oneOf(v.sport, SPORT_IDS, DEFAULT_SPORT));
+  const presetHint = isObj(v.field) && typeof v.field.preset === 'string' ? v.field.preset : undefined;
+  const d = createBoard(sport.id, presetHint);
+  const field = readField(v.field, d.field, sport);
   const teams = isObj(v.teams) ? v.teams : {};
   const ball = isObj(v.ball) ? v.ball : {};
 
@@ -118,6 +118,7 @@ function readBoard(v: Obj, i: number): Board {
   return {
     id: id(v.id, 'b', i),
     name: str(v.name, `Board ${i + 1}`),
+    sport: sport.id,
     field,
     teams: { home: readTeam(teams.home, d.teams.home), away: readTeam(teams.away, d.teams.away) },
     players,
@@ -130,9 +131,27 @@ function readBoard(v: Obj, i: number): Board {
   };
 }
 
-/** Upgrades older save files, one version at a time. None needed yet. */
-function migrate(data: Obj): Obj {
-  return data;
+/** Version 1 to 2: boards get a sport, and grassColor becomes surfaceColor. */
+function v1ToV2(data: Obj): Obj {
+  const boards = Array.isArray(data.boards)
+    ? data.boards.map((b: unknown) => {
+        if (!isObj(b)) return b;
+        const field = isObj(b.field) ? { ...b.field } : b.field;
+        if (isObj(field) && 'grassColor' in field) {
+          field.surfaceColor = field.grassColor;
+          delete field.grassColor;
+        }
+        return { ...b, sport: 'soccer', field };
+      })
+    : data.boards;
+  return { ...data, version: 2, boards };
+}
+
+/** Upgrades older save files, one version at a time. */
+export function migrate(data: Obj, from: number): Obj {
+  let out = data;
+  if (from < 2) out = v1ToV2(out);
+  return out;
 }
 
 /** Reads a save file. Throws SaveFormatError with a message for the user. */
@@ -146,11 +165,11 @@ export function parseSave(text: string): SaveFile {
   if (!isObj(data) || data.app !== APP_ID) {
     throw new SaveFormatError('This file is not a Tactics Board save.');
   }
-  const version = num(data.version, 0);
+  const version = num(data.version, 1);
   if (version > SAVE_VERSION) {
     throw new SaveFormatError('This save was made by a newer version of the app. Reload the page and try again.');
   }
-  const migrated = migrate(data);
+  const migrated = migrate(data, version);
   const boards = list(migrated.boards).map(readBoard);
   if (boards.length === 0) throw new SaveFormatError('This save has no boards.');
 
@@ -214,5 +233,3 @@ export function writeToStorage(storage: Storage | undefined, save: SaveFile): bo
     return false;
   }
 }
-
-export const SIZE_LIMITS = { min: MIN_SIZE, max: MAX_SIZE };
