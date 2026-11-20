@@ -19,7 +19,8 @@ A web app to draw and explain soccer tactics. It runs fully in the browser.
 - Game day: show only your team, with its subs on a bench under the field,
   beside the player they replace, or both. Each substitution time has a
   colour and a minute (blue 20', red 35'); the player coming off wears a
-  ring in that colour.
+  ring in that colour. During the match, the swap button puts a sub on in
+  the player's spot and sends the player to the bench.
 - Plays: record named moves step by step (players and the ball), then play
   them back smoothly at 0.5×, 1× or 2×. Each step sets how long it takes
   to get there. Areas, arrows, notes and cones can show on some steps only;

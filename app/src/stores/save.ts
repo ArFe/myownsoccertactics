@@ -9,7 +9,7 @@ import { applyPositions, capturePositions, type PositionTarget } from '@/model/p
 import type { SportDefinition } from '@/model/sports/types';
 import { clampToField, round, scaleBoardContents, tidy } from '@/model/geometry';
 import { createHistory } from '@/model/history';
-import { MAX_SUBS, MAX_WAVES, createSub, createWave, tidySubs } from '@/model/gameDay';
+import { MAX_SUBS, MAX_WAVES, createSub, createWave, swapIn, tidySubs } from '@/model/gameDay';
 import {
   MAX_PLAYS,
   MAX_STEPS,
@@ -610,6 +610,11 @@ export const useSaveStore = defineStore('save', () => {
     }, `sub-${id}-${Object.keys(patch).join()}`);
   }
 
+  /** Makes a swap: the sub goes on in the player's spot, the player goes to the bench. */
+  function swapSub(id: string): void {
+    changeBoard((b) => void swapIn(b, id));
+  }
+
   function deleteSub(id: string): void {
     changeBoard((b) => (b.subs = b.subs.filter((s) => s.id !== id)));
   }
@@ -836,6 +841,7 @@ export const useSaveStore = defineStore('save', () => {
     addSub,
     updateSub,
     deleteSub,
+    swapSub,
     openPlayById,
     createPlay,
     renamePlay,

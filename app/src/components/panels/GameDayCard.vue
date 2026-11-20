@@ -47,7 +47,10 @@ function onNumber(id: string, e: Event): void {
       <input type="checkbox" :checked="gd.on" @change="store.setGameDay(($event.target as HTMLInputElement).checked)" />
       Game day mode
     </label>
-    <p class="hint">Shows only our team, its subs and when they come on. The plan is kept when it is off.</p>
+    <p class="hint">
+      Shows only our team, its subs and when they come on. The plan is kept when it is off. During the match,
+      <Icon name="swap" :size="12" /> puts a sub on in the player's spot.
+    </p>
 
     <div class="stack">
       <span class="field-label">Our team</span>
@@ -148,6 +151,15 @@ function onNumber(id: string, e: Event): void {
             <option v-for="w in waves" :key="w.id" :value="w.id">{{ w.minute }}'</option>
           </select>
         </div>
+        <button
+          type="button"
+          class="btn icon small swap"
+          :aria-label="`Swap ${s.number} on for ${playerLabel(s.replaces)}`"
+          :title="`Swap on: ${s.number} goes on for ${playerLabel(s.replaces)}, who goes to the bench`"
+          @click="store.swapSub(s.id)"
+        >
+          <Icon name="swap" :size="14" />
+        </button>
         <button type="button" class="btn icon small danger" aria-label="Delete sub" @click="store.deleteSub(s.id)">
           <Icon name="trash" :size="14" />
         </button>
@@ -188,10 +200,10 @@ function onNumber(id: string, e: Event): void {
 }
 .sub {
   display: grid;
-  grid-template-columns: 10px 58px minmax(0, 1fr) 36px;
+  grid-template-columns: 10px 58px minmax(0, 1fr) 36px 36px;
   grid-template-areas:
-    'dot num name del'
-    '. plan plan plan';
+    'dot num name swap del'
+    '. plan plan plan plan';
   gap: 4px 6px;
   align-items: center;
   padding-bottom: 8px;
@@ -209,6 +221,9 @@ function onNumber(id: string, e: Event): void {
 }
 .sub [aria-label='Sub name'] {
   grid-area: name;
+}
+.sub .swap {
+  grid-area: swap;
 }
 .sub [aria-label='Delete sub'] {
   grid-area: del;
