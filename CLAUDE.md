@@ -75,14 +75,6 @@ Both items change the save file shape: one `SAVE_VERSION` bump and one
       - To settle: is "game day" a new board type, or a mode on any board?
         Times as match minutes, or as a live clock during the game?
 
-## Hosting (personal AWS account, myowntactics.ca)
-Steps in `infra/README.md` § First setup. Done 2026-11-20: immutable OIDC
-subject, apply 1 (zone, bucket, CloudFront, deploy role), nameservers at
-WHC, the three `production` environment variables.
-- [ ] Apply 2 (`domain_active = true`) once `.ca` delegates to Route 53;
-      then set its default to `true`.
-- [ ] Run Deploy; check https://myowntactics.ca and `www`.
-
 ## Small things seen in Phase 1
 - [ ] PNG export has no title; add the board name as an option.
 - [ ] Zoom in and out on the field (in the mockup, not built).
