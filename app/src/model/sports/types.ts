@@ -22,8 +22,12 @@ export interface Rect {
 /** Everything drawn on the surface, in metres. */
 export interface FieldDrawing {
   lines: Polyline[];
-  /** Goals, hoops, nets: drawn filled, often outside the lines. */
+  /**
+   * Goals, hoops, nets: drawn filled, often outside the lines. In 3D, the
+   * corners on the field's edge are the posts, `goalHeight` tall.
+   */
   goals: Polyline[];
+  goalHeight: number;
   spots: Spot[];
   /** Lighter bands on the surface (mown grass). */
   stripes: Rect[];

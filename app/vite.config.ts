@@ -8,8 +8,9 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   build: {
-    // The video library (Mediabunny, ~730 kB) is its own chunk, loaded only
-    // when a play is opened; the main bundle stays under this limit.
+    // Big libraries are their own chunks, loaded only when needed: the video
+    // library (Mediabunny, ~730 kB) when a play is opened, Three.js (~610 kB)
+    // when the 3D view is. The main bundle stays under this limit.
     chunkSizeWarningLimit: 800,
   },
   test: {

@@ -39,6 +39,9 @@ let consoleErrors: string[] = [];
 test.beforeEach(async ({ page }) => {
   consoleErrors = [];
   page.on('console', (m) => {
+    // Headless Chromium reads WebGL canvases back to draw the page, and its GPU
+    // driver logs that as a "GL Driver Message". It is not the app's doing.
+    if (m.text().includes('GL Driver Message')) return;
     if (m.type() === 'error' || m.type() === 'warning') consoleErrors.push(m.text());
   });
   page.on('pageerror', (e) => consoleErrors.push(e.message));
@@ -380,4 +383,48 @@ test('downloads a play as GIF, WebM and MP4', async ({ page }) => {
   }
   console.log('made', made.join(', '));
   expect(made).toContain('WebM');
+});
+
+test('shows the board in 3D, with an orbit and a player’s-eye camera, and plays a play there', async ({ page }) => {
+  const bar = page.getByTestId('plays');
+  await bar.getByRole('button', { name: 'New play' }).click();
+  await bar.getByRole('button', { name: 'Add step' }).click();
+  const p = (await state(page)).board.players[5]!;
+  await dragWorld(page, [p.x, p.y], [p.x + 10, p.y]);
+  await bar.getByLabel('Seconds to get to step 2').fill('0.5');
+  await bar.getByLabel('Seconds to get to step 2').press('Tab');
+
+  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: '3D' }).click();
+  const view = page.getByTestId('pitch-3d');
+  const canvas = view.getByRole('img', { name: '3D view of the board' });
+  await expect(canvas).toBeVisible();
+  expect((await canvas.boundingBox())!.width).toBeGreaterThan(300);
+  await expect(page.getByTestId('pitch')).toHaveCount(0);
+
+  // Orbit: drag to turn, then reset.
+  const box = (await canvas.boundingBox())!;
+  await drag(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, { x: box.x + box.width / 2 + 120, y: box.y + box.height / 2 });
+  await view.getByRole('button', { name: 'Reset view' }).click();
+
+  // Player's eye: pick a player and look around.
+  await view.getByRole('button', { name: "Player's eye" }).click();
+  await view.getByLabel('Eye of player').selectOption({ label: 'Away 9' });
+  await drag(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, { x: box.x + box.width / 2 - 80, y: box.y + box.height / 2 + 20 });
+  // Zoom: the wheel and the buttons, down to the limit.
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -300);
+  const zoomIn = view.getByRole('button', { name: 'Zoom in' });
+  for (let i = 0; i < 12 && (await zoomIn.isEnabled()); i++) await zoomIn.click();
+  await expect(zoomIn).toBeDisabled();
+  await view.getByRole('button', { name: 'Zoom out' }).click();
+  await expect(zoomIn).toBeEnabled();
+
+  // The play runs in 3D too.
+  await bar.getByRole('button', { name: 'Step 1', exact: true }).click();
+  await bar.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(bar.getByRole('button', { name: 'Play', exact: true })).toBeVisible({ timeout: 6000 });
+  await expect(bar.getByRole('button', { name: 'Step 2', exact: true })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: '2D' }).click();
+  await expect(page.getByTestId('pitch')).toBeVisible();
 });
