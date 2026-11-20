@@ -43,11 +43,13 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
 - [ ] 3D view of a board (Three.js via TresJS), orbit camera.
 - [ ] Player's-eye camera.
 
-## Hosting (personal AWS account)
-- [ ] Terraform for S3 + CloudFront + OAC and the state bucket (see
-      `infra/README.md`).
-- [ ] Manual GitHub Actions deploy with an OIDC role (immutable subject).
-- [ ] Custom domain, later.
+## Hosting (personal AWS account, myowntactics.ca)
+Steps in `infra/README.md` § First setup. Done 2026-11-20: immutable OIDC
+subject, apply 1 (zone, bucket, CloudFront, deploy role), nameservers at
+WHC, the three `production` environment variables.
+- [ ] Apply 2 (`domain_active = true`) once `.ca` delegates to Route 53;
+      then set its default to `true`.
+- [ ] Run Deploy; check https://myowntactics.ca and `www`.
 
 ## Small things seen in Phase 1
 - [ ] PNG export has no title; add the board name as an option.

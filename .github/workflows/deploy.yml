@@ -1,0 +1,65 @@
+name: Deploy
+
+# Manual only. Uploads app/dist to S3 and clears the CloudFront cache.
+# Infra is applied locally (infra/envs/prod), not here.
+#
+# Needs these variables on the GitHub "production" environment
+# (values from `terraform output` in infra/envs/prod):
+#   AWS_DEPLOY_ROLE_ARN, WEB_BUCKET, DISTRIBUTION_ID
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC token for AWS
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check # typecheck, unit tests, build, e2e
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ca-central-1
+
+      # Hashed assets are cached for a year; everything else (index.html,
+      # favicon) is revalidated on each visit, so a deploy shows up at once.
+      # Order: new assets, then index.html, then remove old assets, so a page
+      # loaded mid-deploy never points at a file that is gone.
+      - name: Upload
+        env:
+          BUCKET: ${{ vars.WEB_BUCKET }}
+        run: |
+          aws s3 sync dist/assets "s3://${BUCKET}/assets" \
+            --cache-control "public,max-age=31536000,immutable"
+          aws s3 sync dist "s3://${BUCKET}" --delete --exclude "assets/*" \
+            --cache-control "no-cache"
+          aws s3 sync dist/assets "s3://${BUCKET}/assets" --delete \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Clear the CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.DISTRIBUTION_ID }}" \
+            --paths "/*"
