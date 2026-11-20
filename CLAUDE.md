@@ -33,6 +33,10 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   vanish on a full field. Editing stays in 2D.
 - Download names go through `stampedName()` in `export/download.ts`
   (`name_YYYY-MM-DD_HH-MM-SS.ext`); use it for any new download.
+- Every downloaded PNG, GIF and video names the site (`SITE` in
+  `export/watermark.ts`), small and faint in the field's bottom-right
+  corner, above any bench. Only the hidden export stage draws it
+  (`PitchStage`'s `watermark` prop), so the editor never shows it.
 - Game day lives in `model/gameDay.ts`. Subs point at a field player by
   id; `tidySubs()` runs on every board change, so a sub whose player is
   gone (smaller team, new preset) goes too. The bench is drawn by
