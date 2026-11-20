@@ -51,7 +51,7 @@ app/src/stores/      one Pinia store; every change goes through it
 app/src/components/  Vue components; PitchStage draws with Konva
 app/src/export/      PNG and zip downloads
 app/tests/           unit tests       app/e2e/  browser tests
-infra/               AWS hosting plan (not built yet)
+infra/               AWS hosting (S3 + CloudFront, myowntactics.ca)
 ```
 
 ```
