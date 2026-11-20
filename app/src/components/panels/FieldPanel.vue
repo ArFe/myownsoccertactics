@@ -1,24 +1,20 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useSaveStore } from '@/stores/save';
-import { PRESET_SIZES, MAX_SIZE, MIN_SIZE, markingAvailable } from '@/model/field';
-import type { Markings } from '@/model/types';
+import { sportMarkingAvailable } from '@/model/field';
+import { CUSTOM_PRESET } from '@/model/types';
 import { toColorInput } from '@/utils/color';
 
 const store = useSaveStore();
 
-const PRESETS = [
-  { id: '11v11', label: '11v11', size: `${PRESET_SIZES['11v11'].length} × ${PRESET_SIZES['11v11'].width}` },
-  { id: '7v7', label: '7v7', size: `${PRESET_SIZES['7v7'].length} × ${PRESET_SIZES['7v7'].width}` },
-] as const;
-
-const MARKINGS: { key: keyof Markings; label: string }[] = [
-  { key: 'penaltyAreas', label: 'Penalty areas' },
-  { key: 'goalAreas', label: 'Goal areas' },
-  { key: 'centreCircle', label: 'Centre circle' },
-  { key: 'buildOutLines', label: 'Build-out lines' },
-  { key: 'stripes', label: 'Grass stripes' },
-];
+// Presets, markings and size limits all come from the board's sport.
+const presets = computed(() =>
+  store.sport.presets.map((p) => ({ id: p.id, label: p.label, size: `${p.length} × ${p.width}` })),
+);
+const markings = computed(() =>
+  store.sport.markings.filter((m) => sportMarkingAvailable(store.sport, store.board.field.preset, m.key)),
+);
+const limits = computed(() => store.sport.sizeLimits);
 
 // Size fields are applied on change (blur or Enter), not on every key.
 const length = ref(store.board.field.length);
@@ -44,7 +40,7 @@ function applySize(): void {
       <h3 class="section-title">Field size</h3>
       <div class="presets">
         <button
-          v-for="p in PRESETS"
+          v-for="p in presets"
           :key="p.id"
           type="button"
           class="preset"
@@ -54,7 +50,7 @@ function applySize(): void {
           <span class="preset-name">{{ p.label }}</span>
           <span class="preset-size">{{ p.size }}</span>
         </button>
-        <span class="preset" :aria-pressed="store.board.field.preset === 'custom'" role="note">
+        <span class="preset" :aria-pressed="store.board.field.preset === CUSTOM_PRESET" role="note">
           <span class="preset-name">Custom</span>
           <span class="preset-size">type a size</span>
         </span>
@@ -62,16 +58,16 @@ function applySize(): void {
       <div class="grid-2">
         <label class="field-label">
           Length (m)
-          <input v-model="length" class="input" type="number" :min="MIN_SIZE" :max="MAX_SIZE" step="0.5" @change="applySize" />
+          <input v-model="length" class="input" type="number" :min="limits.min" :max="limits.max" step="0.5" @change="applySize" />
         </label>
         <label class="field-label">
           Width (m)
-          <input v-model="width" class="input" type="number" :min="MIN_SIZE" :max="MAX_SIZE" step="0.5" @change="applySize" />
+          <input v-model="width" class="input" type="number" :min="limits.min" :max="limits.max" step="0.5" @change="applySize" />
         </label>
       </div>
       <p class="hint">
-        Typing a size switches to Custom ({{ MIN_SIZE }}–{{ MAX_SIZE }} m). Everything on the board stretches with the
-        field. Switching between 11v11 and 7v7 also changes the team size.
+        Typing a size switches to Custom ({{ limits.min }}–{{ limits.max }} m). Everything on the board stretches with the
+        field. A preset with another team size also resets the teams to its default formations.
       </p>
     </section>
 
@@ -98,7 +94,7 @@ function applySize(): void {
     <section class="stack">
       <h3 class="section-title">Markings</h3>
       <label
-        v-for="m in MARKINGS.filter((x) => markingAvailable(store.board.field.preset, x.key))"
+        v-for="m in markings"
         :key="m.key"
         class="check"
       >
@@ -114,12 +110,12 @@ function applySize(): void {
       <h3 class="section-title">Colours</h3>
       <div class="grid-2">
         <label class="swatch-btn">
-          <span class="swatch" :style="{ background: store.board.field.grassColor }" />Grass
+          <span class="swatch" :style="{ background: store.board.field.surfaceColor }" />{{ store.sport.surface.label }}
           <input
             type="color"
-            aria-label="Grass colour"
-            :value="toColorInput(store.board.field.grassColor)"
-            @input="store.updateField({ grassColor: ($event.target as HTMLInputElement).value })"
+            :aria-label="`${store.sport.surface.label} colour`"
+            :value="toColorInput(store.board.field.surfaceColor)"
+            @input="store.updateField({ surfaceColor: ($event.target as HTMLInputElement).value })"
           />
         </label>
         <label class="swatch-btn">
@@ -142,7 +138,7 @@ function applySize(): void {
 }
 .presets {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
   gap: 6px;
 }
 .preset {

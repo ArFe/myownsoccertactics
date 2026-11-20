@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createField } from '@/model/field';
+import { SOCCER } from '@/model/sports/soccer';
 import { makeView, normaliseRect, pointsToScreen, pointsToWorld, rectToScreen, rectToWorld, toScreen, toWorld, boundingBox } from '@/model/view';
 
-const horizontal = makeView(createField('11v11'), 1130);
-const vField = { ...createField('11v11'), orientation: 'vertical' as const };
-const vertical = makeView(vField, 760);
+const PAD = 4; // soccer run-off around an 11v11 field
+const horizontal = makeView(createField(SOCCER, '11v11'), PAD, 1130);
+const vField = { ...createField(SOCCER, '11v11'), orientation: 'vertical' as const };
+const vertical = makeView(vField, PAD, 760);
 
 describe('view', () => {
   it('fits the field and its run-off into the width', () => {
@@ -14,7 +16,7 @@ describe('view', () => {
   });
 
   it('respects the height limit', () => {
-    const v = makeView(createField('11v11'), 2000, 380);
+    const v = makeView(createField(SOCCER, '11v11'), PAD, 2000, 380);
     expect(v.stageHeight).toBeLessThanOrEqual(380);
     expect(v.stageWidth).toBeLessThan(2000);
   });

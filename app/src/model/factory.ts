@@ -1,7 +1,9 @@
-import { createField } from './field';
-import { DEFAULT_FORMATIONS, getFormation, placeFormation } from './formations';
+import { createField, defaultPreset, presetDef } from './field';
+import { getFormation, placeFormation } from './formations';
+import { DEFAULT_SPORT, getSport } from './sports';
+import type { SportDefinition } from './sports/types';
 import { APP_ID, SAVE_VERSION } from './types';
-import type { Board, FieldPreset, FieldSettings, Player, SaveFile, Team, TeamSide } from './types';
+import type { Board, FieldSettings, Player, SaveFile, SportId, Team, TeamSide } from './types';
 
 let counter = 0;
 
@@ -34,12 +36,13 @@ export function createTeam(side: TeamSide, formation: string): Team {
  * `previous`, so changing formation does not lose the names typed in.
  */
 export function playersInFormation(
+  sport: SportDefinition,
   side: TeamSide,
   formationName: string,
   field: Pick<FieldSettings, 'length' | 'width'>,
   previous: Player[] = [],
 ): Player[] {
-  const formation = getFormation(formationName);
+  const formation = getFormation(sport, formationName);
   if (!formation) throw new Error(`Unknown formation: ${formationName}`);
   return placeFormation(formation, side, field.length, field.width).map((spot, i) => {
     const old = previous[i];
@@ -55,21 +58,20 @@ export function playersInFormation(
   });
 }
 
-export function teamSizeFor(preset: FieldPreset): 7 | 11 {
-  return preset === '7v7' ? 7 : 11;
-}
-
-export function createBoard(preset: Exclude<FieldPreset, 'custom'> = '11v11', name = 'New board'): Board {
-  const field = createField(preset);
-  const defaults = DEFAULT_FORMATIONS[teamSizeFor(preset)];
+export function createBoard(sportId: SportId = DEFAULT_SPORT, presetId?: string, name = 'New board'): Board {
+  const sport = getSport(sportId);
+  const preset = presetDef(sport, presetId ?? '') ?? defaultPreset(sport);
+  const field = createField(sport, preset.id);
+  const defaults = preset.defaultFormations;
   return {
     id: newId('b'),
     name,
+    sport: sport.id,
     field,
     teams: { home: createTeam('home', defaults.home), away: createTeam('away', defaults.away) },
     players: [
-      ...playersInFormation('home', defaults.home, field),
-      ...playersInFormation('away', defaults.away, field),
+      ...playersInFormation(sport, 'home', defaults.home, field),
+      ...playersInFormation(sport, 'away', defaults.away, field),
     ],
     ball: { x: field.length / 2, y: field.width / 2, visible: true },
     areas: [],
@@ -81,7 +83,7 @@ export function createBoard(preset: Exclude<FieldPreset, 'custom'> = '11v11', na
 }
 
 export function createSave(name = 'My tactics'): SaveFile {
-  const board = createBoard('11v11', 'Board 1');
+  const board = createBoard(DEFAULT_SPORT, undefined, 'Board 1');
   return {
     app: APP_ID,
     version: SAVE_VERSION,

@@ -36,8 +36,10 @@ npm run check       # all of the above
 ## How it is built
 
 ```
-app/src/model/       plain TypeScript: types, field lines, formations,
-                     metre <-> pixel view, undo history, save file reading
+app/src/model/       plain TypeScript: types, metre <-> pixel view,
+                     undo history, save file reading and upgrades
+app/src/model/sports/  one folder per sport (soccer for now): presets,
+                     markings, field lines, formations
 app/src/stores/      one Pinia store; every change goes through it
 app/src/components/  Vue components; PitchStage draws with Konva
 app/src/export/      PNG and zip downloads

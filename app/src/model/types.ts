@@ -3,23 +3,24 @@
 // The home team attacks towards x = length.
 
 export type TeamSide = 'home' | 'away';
-export type FieldPreset = '11v11' | '7v7' | 'custom';
 export type Orientation = 'horizontal' | 'vertical';
 
-export interface Markings {
-  penaltyAreas: boolean;
-  goalAreas: boolean;
-  centreCircle: boolean;
-  buildOutLines: boolean;
-  stripes: boolean;
-}
+/** Sports the app knows. Each one has a definition in model/sports. */
+export type SportId = 'soccer';
+
+/** A preset id from the board's sport (e.g. "11v11"), or "custom". */
+export type FieldPreset = string;
+export const CUSTOM_PRESET = 'custom';
+
+/** Which field markings are turned on, by key. The sport lists the keys. */
+export type Markings = Record<string, boolean>;
 
 export interface FieldSettings {
   preset: FieldPreset;
   length: number;
   width: number;
   orientation: Orientation;
-  grassColor: string;
+  surfaceColor: string;
   lineColor: string;
   markings: Markings;
 }
@@ -104,6 +105,7 @@ export interface Cone {
 export interface Board {
   id: string;
   name: string;
+  sport: SportId;
   field: FieldSettings;
   teams: Record<TeamSide, Team>;
   players: Player[];
@@ -116,7 +118,12 @@ export interface Board {
 }
 
 export const APP_ID = 'myownsoccertactics';
-export const SAVE_VERSION = 1;
+/**
+ * Version history:
+ * 1. First version (soccer only).
+ * 2. Boards have a `sport`; `field.grassColor` became `field.surfaceColor`.
+ */
+export const SAVE_VERSION = 2;
 
 export interface SaveFile {
   app: typeof APP_ID;

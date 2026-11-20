@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useSaveStore } from '@/stores/save';
+import { fieldLabel } from '@/model/field';
 import PitchStage from './PitchStage.vue';
 
 const store = useSaveStore();
@@ -27,11 +28,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', measure);
 });
 
-const sizeLabel = computed(() => {
-  const f = store.board.field;
-  const kind = f.preset === 'custom' ? 'Custom' : f.preset;
-  return `${kind} · ${f.length} × ${f.width} m`;
-});
+const sizeLabel = computed(() => fieldLabel(store.sport, store.board.field));
 
 const namesOn = computed(() => store.board.teams.home.showNames || store.board.teams.away.showNames);
 

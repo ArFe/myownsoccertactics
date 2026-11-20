@@ -1,4 +1,3 @@
-import { runoff } from './field';
 import type { FieldSettings, Orientation } from './types';
 
 /**
@@ -19,8 +18,8 @@ export interface View {
   unit: number;
 }
 
-export function makeView(field: FieldSettings, maxWidth: number, maxHeight = Infinity): View {
-  const pad = runoff(field);
+/** `pad` is the run-off drawn around the field, in metres (from the sport). */
+export function makeView(field: FieldSettings, pad: number, maxWidth: number, maxHeight = Infinity): View {
   const vertical = field.orientation === 'vertical';
   const spanX = (vertical ? field.width : field.length) + pad * 2;
   const spanY = (vertical ? field.length : field.width) + pad * 2;

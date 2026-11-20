@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useSaveStore } from '@/stores/save';
-import { FORMATIONS } from '@/model/formations';
+import { formationGroups } from '@/model/formations';
 import type { TeamSide } from '@/model/types';
 import { toColorInput } from '@/utils/color';
 
@@ -13,10 +13,9 @@ const SIDES: { side: TeamSide; label: string }[] = [
   { side: 'away', label: 'Away' },
 ];
 
-const groups = [
-  { label: '11 players', items: FORMATIONS.filter((f) => f.size === 11) },
-  { label: '7 players', items: FORMATIONS.filter((f) => f.size === 7) },
-];
+const groups = computed(() =>
+  formationGroups(store.sport).map((g) => ({ label: `${g.size} players`, items: g.items })),
+);
 
 const playersBySide = computed(() => ({
   home: store.board.players.filter((p) => p.team === 'home'),

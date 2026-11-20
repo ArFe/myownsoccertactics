@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import type Konva from 'konva';
-import { buildFieldDrawing } from '@/model/field';
+import { getSport } from '@/model/sports';
 import {
   boundingBox,
   makeView,
@@ -40,7 +40,11 @@ interface NodeRef {
 const stageRef = ref<NodeRef | null>(null);
 const trRef = ref<NodeRef | null>(null);
 
-const view = computed(() => makeView(props.board.field, props.width, props.maxHeight));
+// The board prop may not be the open board (image export), so use its own sport.
+const sport = computed(() => getSport(props.board.sport));
+const view = computed(() =>
+  makeView(props.board.field, sport.value.runoff(props.board.field), props.width, props.maxHeight),
+);
 const u = computed(() => view.value.unit);
 /** Pixel size that scales with the stage but never gets too small to read. */
 const px = (n: number): number => Math.max(n * 0.65, n * u.value);
@@ -57,10 +61,10 @@ function getStage(): Konva.Stage | null {
 const field = computed(() => {
   const v = view.value;
   const f = props.board.field;
-  const drawing = buildFieldDrawing(f);
+  const drawing = sport.value.drawField(f);
   const lineWidth = Math.max(1, 1.8 * u.value);
   return {
-    background: { x: 0, y: 0, width: v.stageWidth, height: v.stageHeight, fill: f.grassColor },
+    background: { x: 0, y: 0, width: v.stageWidth, height: v.stageHeight, fill: f.surfaceColor },
     stripes: drawing.stripes.map((r) => {
       const s = rectToScreen(v, r);
       return { x: s.x, y: s.y, width: s.w, height: s.h, fill: '#FFFFFF', opacity: 0.06 };

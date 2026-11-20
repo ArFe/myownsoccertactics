@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { useSaveStore, type Tool } from '@/stores/save';
+import { presetLabel } from '@/model/field';
+import { getSport } from '@/model/sports';
 import Icon from './Icon.vue';
 
 const store = useSaveStore();
@@ -43,13 +45,21 @@ const HINTS: Partial<Record<Tool, string>> = {
             @click="store.setActiveBoard(b.id)"
           >
             <span class="board-name">{{ b.name || 'Untitled board' }}</span>
-            <span class="tag">{{ b.field.preset === 'custom' ? 'custom' : b.field.preset }}</span>
+            <span class="tag">{{ presetLabel(getSport(b.sport), b.field.preset) }}</span>
           </button>
         </li>
       </ul>
       <div class="grid-2">
-        <button type="button" class="btn small new" @click="store.addBoard('11v11')"><Icon name="plus" :size="16" />11v11</button>
-        <button type="button" class="btn small new" @click="store.addBoard('7v7')"><Icon name="plus" :size="16" />7v7</button>
+        <button
+          v-for="p in store.sport.presets"
+          :key="p.id"
+          type="button"
+          class="btn small new"
+          :aria-label="`New ${p.label} board`"
+          @click="store.addBoard(p.id)"
+        >
+          <Icon name="plus" :size="16" />{{ p.label }}
+        </button>
       </div>
     </section>
 

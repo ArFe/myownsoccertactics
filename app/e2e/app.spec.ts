@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { makeView, toScreen } from '../src/model/view';
+import { getSport } from '../src/model/sports';
 import type { Board, SaveFile } from '../src/model/types';
 
 // ---------- helpers ----------
@@ -16,7 +17,7 @@ async function state(page: Page): Promise<{ save: SaveFile; board: Board }> {
 async function screenPoint(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
   const box = (await page.locator('[data-testid="pitch"] .konvajs-content').boundingBox())!;
   const { board } = await state(page);
-  const view = makeView(board.field, box.width + 0.5, box.height + 0.5);
+  const view = makeView(board.field, getSport(board.sport).runoff(board.field), box.width + 0.5, box.height + 0.5);
   const p = toScreen(view, x, y);
   return { x: box.x + p.x, y: box.y + p.y };
 }
@@ -184,7 +185,7 @@ test('custom field size stretches the board', async ({ page }) => {
 });
 
 test('keeps many boards in one save, downloads and uploads it', async ({ page }) => {
-  await page.getByRole('button', { name: '7v7' }).click();
+  await page.getByRole('button', { name: 'New 7v7 board' }).click();
   await page.getByLabel('Board name').fill('Build-out line');
   await expect(page.locator('.boards li')).toHaveCount(2);
 
@@ -229,7 +230,7 @@ test('downloads the board as a PNG and all boards as a zip', async ({ page }) =>
   expect(bytes.subarray(1, 4).toString()).toBe('PNG');
   expect(bytes.readUInt32BE(16)).toBe(1600); // width from the PNG header
 
-  await page.getByRole('button', { name: '11v11', exact: true }).click();
+  await page.getByRole('button', { name: 'New 11v11 board' }).click();
   await page.getByRole('button', { name: 'My tactics' }).click();
   const [zip] = await Promise.all([
     page.waitForEvent('download'),

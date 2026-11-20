@@ -1,4 +1,3 @@
-import { runoff } from './field';
 import type { Board, FieldSettings } from './types';
 
 /** Stretch everything on a board by sx along the length and sy across. */
@@ -32,9 +31,8 @@ export function scaleBoardContents(board: Board, sx: number, sy: number): void {
   }
 }
 
-/** Keep a point on the field or its run-off. */
-export function clampToField(field: FieldSettings, x: number, y: number): { x: number; y: number } {
-  const pad = runoff(field);
+/** Keep a point on the field or its run-off (`pad` metres around it). */
+export function clampToField(field: FieldSettings, pad: number, x: number, y: number): { x: number; y: number } {
   return {
     x: Math.min(field.length + pad, Math.max(-pad, x)),
     y: Math.min(field.width + pad, Math.max(-pad, y)),
