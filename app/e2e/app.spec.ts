@@ -517,6 +517,13 @@ test('game day: one team, times with colours, subs on the bench and in the PNG',
     return pngSize(await readFile((await d.path())!)).height;
   };
   const withBench = await pngHeight();
+
+  // During the match: swap Ana on for 9; 9 goes to the bench.
+  await card.getByRole('button', { name: 'Swap 12 on for 9' }).click();
+  ({ board } = await state(page));
+  expect(board.players.find((p) => p.id === nine.id)).toMatchObject({ number: 12, name: 'Ana', x: nine.x, y: nine.y });
+  expect(board.subs).toMatchObject([{ number: 9, replaces: nine.id, waveId: null }]);
+  await expect(card.getByTestId('sub-9')).toBeVisible();
   await page.getByRole('button', { name: 'Game day: on' }).click();
   ({ board } = await state(page));
   expect(board.teams.away.visible).toBe(true);

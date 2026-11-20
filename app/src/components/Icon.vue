@@ -15,6 +15,7 @@ const PATHS = {
   cone: 'M9.5 4h5l3.5 14h-12zM4 20h16',
   ball: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 7.5l4 2.9-1.5 4.7h-5L8 10.4z',
   copy: 'M10 8h10v12H10zM16 8V4H4v12h4',
+  swap: 'M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7',
   trash: 'M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3',
   close: 'M6 6l12 12M18 6 6 18',
   up: 'm6 15 6-6 6 6',

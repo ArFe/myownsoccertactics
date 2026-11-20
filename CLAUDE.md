@@ -79,9 +79,10 @@ match minutes; subs show on a bench, beside the player, or both.
 - [x] **Game day mode: one team, substitution times per colour.** Hides
       the other team with `Team.visible`; each time has a colour and a
       minute; the player coming off gets a ring in that colour.
-- [ ] **Make a swap.** A button that puts the sub on the field in the
-      player's spot (keeps `x`, `y`, `role`; takes the sub's `number` and
-      `name`), for use during the match.
+- [x] **Make a swap.** A button on each sub (`swapIn()`): the spot keeps
+      its id, `x`, `y` and `role` and takes the sub's `number` and `name`;
+      the player coming off goes to the bench for that spot with no time,
+      so a rolling sub can be swapped back. Undo takes a swap back.
 
 ## Small things seen in Phase 1
 - [x] PNG export has no title; add the board name as an option.

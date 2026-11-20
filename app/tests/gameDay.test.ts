@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { cloneBoardWithNewIds, createBoard, createSave } from '@/model/factory';
-import { WAVE_COLORS, createSub, createWave, ringColor, subsFor, teamSubs, tidySubs } from '@/model/gameDay';
+import { WAVE_COLORS, createSub, createWave, ringColor, subsFor, swapIn, teamSubs, tidySubs } from '@/model/gameDay';
 import { parseSave, serializeSave } from '@/model/persistence';
 import { useSaveStore } from '@/stores/save';
 
@@ -59,6 +59,25 @@ describe('game day model', () => {
     tidySubs(board);
     expect(board.subs.map((s) => s.id)).not.toContain(a.id);
     expect(board.subs).toHaveLength(0);
+  });
+
+  it('a swap puts the sub on in the spot, and the player on the bench', () => {
+    const { board, home, a, b, w2 } = planned();
+    const nine = home[9]!;
+    const spot = { id: nine.id, x: nine.x, y: nine.y, role: nine.role, number: nine.number };
+    nine.name = 'Bo';
+    a.name = 'Ana';
+    expect(swapIn(board, a.id)).toBe(true);
+    // The spot stays, with the sub's number and name.
+    expect(board.players.find((p) => p.id === spot.id)).toMatchObject({ ...spot, number: 12, name: 'Ana' });
+    // The player coming off waits on the bench for the same spot, with no time.
+    expect(a).toMatchObject({ number: spot.number, name: 'Bo', replaces: spot.id, waveId: null });
+    // The other sub for that spot still comes on later, now for Ana.
+    expect(b).toMatchObject({ replaces: spot.id, waveId: w2.id });
+    // Swapping back is the same move.
+    swapIn(board, a.id);
+    expect(board.players.find((p) => p.id === spot.id)).toMatchObject({ number: spot.number, name: 'Bo' });
+    expect(swapIn(board, 'ghost')).toBe(false);
   });
 
   it('a copied board keeps its plan, with the new ids', () => {
@@ -147,6 +166,19 @@ describe('game day in the store', () => {
     s.deleteSub(sub);
     expect(s.board.subs).toHaveLength(0);
     expect(s.addSub('ghost')).toBeNull();
+  });
+
+  it('makes a swap that undo takes back', () => {
+    const s = useSaveStore();
+    const p = s.board.players.find((x) => x.team === 'home' && x.number === 9)!;
+    const sub = s.addSub(p.id)!;
+    s.updateSub(sub, { name: 'Ana' });
+    s.swapSub(sub);
+    expect(s.board.players.find((x) => x.id === p.id)).toMatchObject({ number: 12, name: 'Ana' });
+    expect(s.board.subs[0]).toMatchObject({ number: 9, replaces: p.id });
+    s.undo();
+    expect(s.board.players.find((x) => x.id === p.id)!.number).toBe(9);
+    expect(s.board.subs[0]).toMatchObject({ number: 12, name: 'Ana' });
   });
 
   it('a smaller team takes the subs of players who left with it', () => {

@@ -65,3 +65,23 @@ export function tidySubs(board: Board): void {
   board.subs = board.subs.filter((s) => players.has(s.replaces));
   for (const s of board.subs) if (s.waveId && !waves.has(s.waveId)) s.waveId = null;
 }
+
+/**
+ * Puts a sub on the field during the match. The spot keeps its place, role
+ * and id (so plays, saved positions and other subs for it still work), and
+ * takes the sub's number and name. The player coming off goes to the bench
+ * for the same spot with no time, so a rolling sub can be swapped back.
+ * Returns false when the sub or its player is not there.
+ */
+export function swapIn(board: Board, subId: string): boolean {
+  const sub = board.subs.find((s) => s.id === subId);
+  const player = sub && playerOf(board, sub);
+  if (!sub || !player) return false;
+  const off = { number: player.number, name: player.name };
+  player.number = sub.number;
+  player.name = sub.name;
+  sub.number = off.number;
+  sub.name = off.name;
+  sub.waveId = null;
+  return true;
+}
