@@ -18,6 +18,7 @@ import type { Area, Arrow, Board } from '@/model/types';
 import { useSaveStore, type SelectionKind } from '@/stores/save';
 import { hexToRgba } from '@/utils/color';
 import { BALL_STYLES, sizeScale } from '@/model/balls';
+import { watermark as watermarkLayout } from '@/export/watermark';
 import { ringColor, subsFor, teamSubs, waveOf, wavesByMinute } from '@/model/gameDay';
 
 const props = withDefaults(
@@ -29,8 +30,10 @@ const props = withDefaults(
     interactive?: boolean;
     /** Opacity by drawing id (and "ball") while a play fades things in or out. */
     fade?: Record<string, number>;
+    /** Downloads name the site, faintly, in a corner of the field. */
+    watermark?: boolean;
   }>(),
-  { maxHeight: Infinity, interactive: true, fade: () => ({}) },
+  { maxHeight: Infinity, interactive: true, fade: () => ({}), watermark: false },
 );
 const opacityOf = (id: string): number => props.fade[id] ?? 1;
 
@@ -58,6 +61,10 @@ const view = computed(() =>
 const u = computed(() => view.value.unit);
 /** Pixel size that scales with the stage but never gets too small to read. */
 const px = (n: number): number => Math.max(n * 0.65, n * u.value);
+
+const siteMark = computed(() =>
+  props.watermark ? { ...watermarkLayout(view.value.stageWidth, view.value.stageHeight), fontFamily: FONT } : null,
+);
 
 const canEdit = computed(() => props.interactive && store.tool === 'select');
 const isSelected = (kind: SelectionKind, id: string): boolean =>
@@ -909,6 +916,10 @@ defineExpose({ getStage, cancelDraft, finishPolygon, view });
             <v-circle :config="polygonDraft.first" />
           </template>
         </template>
+      </v-layer>
+
+      <v-layer v-if="siteMark" :config="{ listening: false }">
+        <v-text :config="siteMark" />
       </v-layer>
     </v-stage>
   </div>

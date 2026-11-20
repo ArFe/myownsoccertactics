@@ -28,7 +28,8 @@ A web app to draw and explain soccer tactics. It runs fully in the browser.
   player's eyes and look around. Plays run in 3D too.
 - Download a board as a PNG, or all boards as a zip of PNGs, with the
   board name as a title if you like. Every download is named with the date
-  and time, so nothing is overwritten.
+  and time, so nothing is overwritten. Images, GIFs and videos carry a
+  small, faint "myowntactics.ca" in the corner.
 - Zoom the 2D field from 100% to 300% (buttons, + − 0 keys, or Ctrl/⌘ and
   the wheel). Long notes wrap before the edge of the field.
 

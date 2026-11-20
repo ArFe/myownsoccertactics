@@ -108,6 +108,7 @@ onBeforeUnmount(() => {
       :width="job.width"
       :max-height="job.width * 1.6"
       :interactive="false"
+      watermark
     />
   </div>
 </template>
