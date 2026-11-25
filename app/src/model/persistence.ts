@@ -147,7 +147,7 @@ function readGameDay(v: unknown, d: GameDay): GameDay {
   return {
     on: bool(v.on, d.on),
     team: oneOf<TeamSide>(v.team, ['home', 'away'], d.team),
-    subsShown: oneOf(v.subsShown, ['bench', 'beside', 'both'] as const, d.subsShown),
+    subsShown: oneOf(v.subsShown, ['none', 'bench', 'beside', 'both'] as const, d.subsShown),
   };
 }
 
@@ -294,6 +294,19 @@ function v5ToV6(data: Obj): Obj {
   return { ...data, version: 6, boards };
 }
 
+/**
+ * Version 6 to 7: the "Show subs" switch gets "none" and works with game day
+ * off too, so boards with game day off get "none" and look as before.
+ */
+function v6ToV7(data: Obj): Obj {
+  const boards = Array.isArray(data.boards)
+    ? data.boards.map((b: unknown) =>
+        isObj(b) && isObj(b.gameDay) && b.gameDay.on !== true ? { ...b, gameDay: { ...b.gameDay, subsShown: 'none' } } : b,
+      )
+    : data.boards;
+  return { ...data, version: 7, boards };
+}
+
 /** Upgrades older save files, one version at a time. */
 export function migrate(data: Obj, from: number): Obj {
   let out = data;
@@ -302,6 +315,7 @@ export function migrate(data: Obj, from: number): Obj {
   if (from < 4) out = v3ToV4(out);
   if (from < 5) out = v4ToV5(out);
   if (from < 6) out = v5ToV6(out);
+  if (from < 7) out = v6ToV7(out);
   return out;
 }
 

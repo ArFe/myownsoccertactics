@@ -6,6 +6,8 @@ import { toColorInput } from '@/utils/color';
 import Icon from '../Icon.vue';
 import BallSettings from './BallSettings.vue';
 import StepVisibility from './StepVisibility.vue';
+import SubRow from './SubRow.vue';
+import { subsFor, wavesByMinute } from '@/model/gameDay';
 
 const store = useSaveStore();
 const nameInput = ref<HTMLInputElement | null>(null);
@@ -17,6 +19,14 @@ const arrow = computed(() => (kind.value === 'arrow' ? (item.value as Arrow) : n
 const player = computed(() => (kind.value === 'player' ? (item.value as Player) : null));
 const note = computed(() => (kind.value === 'text' ? (item.value as TextNote) : null));
 const cone = computed(() => (kind.value === 'cone' ? (item.value as Cone) : null));
+/** With game day on or subs shown, a player of our team lists its subs here too. */
+const subsShown = computed(() => {
+  const gd = store.board.gameDay;
+  return !!player.value && player.value.team === gd.team && (gd.on || gd.subsShown !== 'none');
+});
+const playerSubs = computed(() => (player.value ? subsFor(store.board, player.value.id) : []));
+const teamOnField = computed(() => store.board.players.filter((p) => p.team === store.board.gameDay.team));
+const waves = computed(() => wavesByMinute(store.board));
 /** Drawings can be shown on some steps of a play only. */
 const drawingId = computed(() => (area.value ?? arrow.value ?? note.value ?? cone.value)?.id ?? null);
 
@@ -84,6 +94,13 @@ defineExpose({ focusName });
         </label>
       </div>
       <p class="hint">Role: {{ player.role || '—' }}. Change the formation in the Teams tab.</p>
+      <div v-if="subsShown" class="stack" data-testid="player-subs">
+        <span class="field-label">Subs for {{ player.number }}</span>
+        <SubRow v-for="s in playerSubs" :key="s.id" :sub="s" :on-field="teamOnField" :waves="waves" />
+        <button type="button" class="btn small" @click="store.addSub(player!.id)">
+          <Icon name="plus" :size="14" />Add a sub
+        </button>
+      </div>
     </template>
 
     <!-- Area -->

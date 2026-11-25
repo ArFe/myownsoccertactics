@@ -52,8 +52,9 @@ const trRef = ref<NodeRef | null>(null);
 const sport = computed(() => getSport(props.board.sport));
 // Game day can show a bench under the field; the field gets the rest of the space.
 const gameDay = computed(() => props.board.gameDay);
-const benchShown = computed(() => gameDay.value.on && gameDay.value.subsShown !== 'beside');
-const besideShown = computed(() => gameDay.value.on && gameDay.value.subsShown !== 'bench');
+// The "Show subs" switch works with game day on or off; "none" hides subs.
+const benchShown = computed(() => gameDay.value.subsShown === 'bench' || gameDay.value.subsShown === 'both');
+const besideShown = computed(() => gameDay.value.subsShown === 'beside' || gameDay.value.subsShown === 'both');
 const benchHeight = computed(() => (benchShown.value ? Math.round(Math.min(130, Math.max(64, props.width * 0.085))) : 0));
 const view = computed(() =>
   makeView(props.board.field, sport.value.runoff(props.board.field), props.width, props.maxHeight - benchHeight.value),
@@ -447,10 +448,9 @@ const players = computed(() => {
       const team = props.board.teams[p.team];
       const s = toScreen(view.value, p.x, p.y);
       const sel = isSelected('player', p.id);
-      const onGameDay = gameDay.value.on && p.team === gameDay.value.team;
+      const onGameDay = gameDay.value.subsShown !== 'none' && p.team === gameDay.value.team;
       const ring = onGameDay ? ringColor(props.board, p.id) : null;
       const beside = onGameDay && besideShown.value ? subsFor(props.board, p.id) : [];
-      const small = r * 0.62;
       return {
         player: p,
         // A white edge under the ring keeps a blue ring visible on a blue shirt.
@@ -460,35 +460,21 @@ const players = computed(() => {
               color: { radius: r + px(5), stroke: ring, strokeWidth: px(4.5), listening: false },
             }
           : null,
+        // A tag per sub with its name (its number if it has none), stacked to the right.
         beside: beside.map((sub, i) => {
-          const x = r + small * 0.6 + i * small * 2.1;
-          const y = -r * 0.75;
+          const fontSize = px(11) * labelScale;
+          const pad = px(3);
           return {
             id: sub.id,
-            circle: {
-              x,
-              y,
-              radius: small,
+            group: { x: r + px(10), y: -r + i * (fontSize + pad * 2 + px(3)), listening: false },
+            tag: {
               fill: team.shirtColor,
               stroke: waveOf(props.board, sub)?.color ?? '#FFFFFF',
-              strokeWidth: px(3),
+              strokeWidth: px(2),
+              cornerRadius: px(4),
               opacity: 0.92,
-              listening: false,
             },
-            text: {
-              x: x - small,
-              y: y - small,
-              width: small * 2,
-              height: small * 2,
-              align: 'center',
-              verticalAlign: 'middle',
-              text: String(sub.number),
-              fontSize: px(10) * scale,
-              fontStyle: 'bold',
-              fontFamily: FONT,
-              fill: team.numberColor,
-              listening: false,
-            },
+            text: { text: sub.name || String(sub.number), fontSize, fontStyle: 'bold', fontFamily: FONT, fill: team.numberColor, padding: pad },
           };
         }),
         group: { id: p.id, name: 'player', x: s.x, y: s.y, draggable: canEdit.value },
@@ -865,10 +851,10 @@ defineExpose({ getStage, cancelDraft, finishPolygon, view });
             <v-circle :config="p.ring.edge" />
             <v-circle :config="p.ring.color" />
           </template>
-          <template v-for="b in p.beside" :key="b.id">
-            <v-circle :config="b.circle" />
+          <v-label v-for="b in p.beside" :key="b.id" :config="b.group">
+            <v-tag :config="b.tag" />
             <v-text :config="b.text" />
-          </template>
+          </v-label>
           <v-circle
             :config="p.circle"
             @mousedown="selectItem('player', p.player.id)"
