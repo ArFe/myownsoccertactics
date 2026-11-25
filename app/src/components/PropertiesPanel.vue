@@ -4,10 +4,12 @@ import { useSaveStore } from '@/stores/save';
 import TeamsPanel from './panels/TeamsPanel.vue';
 import FieldPanel from './panels/FieldPanel.vue';
 import SelectionPanel from './panels/SelectionPanel.vue';
+import SquadPanel from './panels/SquadPanel.vue';
 
-type Tab = 'teams' | 'field' | 'selection';
+type Tab = 'teams' | 'squad' | 'field' | 'selection';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'teams', label: 'Teams' },
+  { id: 'squad', label: 'Squad' },
   { id: 'field', label: 'Field' },
   { id: 'selection', label: 'Selection' },
 ];
@@ -26,7 +28,7 @@ watch(
 
 <template>
   <aside class="properties" aria-label="Properties">
-    <div class="seg" role="tablist" aria-label="Panels">
+    <div class="seg tabs" role="tablist" aria-label="Panels">
       <button
         v-for="t in TABS"
         :id="`tab-${t.id}`"
@@ -42,6 +44,7 @@ watch(
     </div>
     <div :id="`panel-${tab}`" role="tabpanel" :aria-labelledby="`tab-${tab}`">
       <TeamsPanel v-if="tab === 'teams'" />
+      <SquadPanel v-else-if="tab === 'squad'" />
       <FieldPanel v-else-if="tab === 'field'" />
       <SelectionPanel v-else />
     </div>
@@ -58,6 +61,15 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+/* Four tabs: each takes the room its label needs, so "Selection" fits. */
+.tabs {
+  grid-auto-columns: auto;
+}
+.tabs button {
+  padding: 0 6px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 @media (min-width: 1100px) {
   .properties {

@@ -5,6 +5,14 @@ import { getSport } from '../src/model/sports';
 import type { Board, SaveFile } from '../src/model/types';
 
 // ---------- helpers ----------
+/** Fills the open "Add players" window and presses Enter; the window stays open. */
+async function addPlayer(page: Page, number: number, name: string): Promise<void> {
+  const modal = page.getByRole('dialog', { name: 'Add players' });
+  await modal.getByLabel('New player number').fill(String(number));
+  await modal.getByLabel('New player name').fill(name);
+  await modal.getByLabel('New player name').press('Enter');
+}
+
 
 async function state(page: Page): Promise<{ save: SaveFile; board: Board }> {
   return page.evaluate(() => {
@@ -498,9 +506,11 @@ test('game day: one team, times with colours, subs on the bench and in the PNG',
   await card.getByRole('button', { name: 'Add a time' }).click();
   await card.getByLabel('Minute of time 1').fill('20');
   await card.getByLabel('Minute of time 1').press('Tab');
-  await card.getByRole('button', { name: 'Add a sub' }).click();
+  // A sub is picked from the squad; "New player…" adds one there first.
+  await card.getByLabel('Add a sub').selectOption({ label: 'New player…' });
+  await addPlayer(page, 12, 'Ana');
+  await page.getByRole('dialog', { name: 'Add players' }).getByRole('button', { name: 'Done' }).click();
   const sub = card.getByTestId('sub-12');
-  await sub.getByLabel('Sub name').fill('Ana');
   await sub.getByLabel('Comes on for').selectOption({ label: 'for 9' });
   await sub.getByLabel('Time').selectOption({ label: "20'" });
   await card.getByRole('group', { name: 'Show subs' }).getByRole('button', { name: 'Both' }).click();
@@ -542,10 +552,63 @@ test('game day: clicking a player shows its subs, and a sub can be added there',
   await page.mouse.click(at.x, at.y);
   const panel = page.getByTestId('player-subs');
   await expect(panel.getByText('Subs for 9')).toBeVisible();
-  await panel.getByRole('button', { name: 'Add a sub' }).click();
-  await panel.getByTestId('sub-12').getByLabel('Sub name').fill('Ana');
+  await panel.getByLabel('Add a sub').selectOption({ label: 'New player…' });
+  await addPlayer(page, 12, 'Ana');
+  await page.getByRole('dialog', { name: 'Add players' }).getByRole('button', { name: 'Done' }).click();
   const { board } = await state(page);
   expect(board.subs).toMatchObject([{ number: 12, name: 'Ana', replaces: nine.id }]);
+});
+
+test('squad: add players in a window, import a CSV, and pick them on the field', async ({ page }) => {
+  await page.getByRole('tab', { name: 'Squad' }).click();
+  const squad = page.getByTestId('squad');
+  await squad.getByRole('button', { name: 'Add players' }).click();
+  const modal = page.getByRole('dialog', { name: 'Add players' });
+  await expect(modal.getByLabel('New player number')).toHaveValue('1');
+  await modal.getByLabel('New player number').fill('9');
+  await modal.getByLabel('New player name').fill('Ariel');
+  await modal.getByRole('group', { name: 'Positions' }).getByRole('button', { name: 'GK' }).click();
+  await modal.getByLabel('New player positions').fill('ST/LW');
+  await modal.getByLabel('New player name').press('Enter');
+  // The window stays open for the next one; a taken number is refused.
+  await addPlayer(page, 9, 'Test');
+  await expect(modal.getByRole('alert')).toHaveText('Number 9 is taken by Ariel.');
+  await addPlayer(page, 10, 'Test');
+  await expect(modal.getByTestId('added-now')).toHaveText('Added: 9 Ariel, 10 Test');
+  await modal.getByRole('button', { name: 'Done' }).click();
+  await expect(modal).toBeHidden();
+
+  await squad.getByLabel('Squad CSV file').setInputFiles({
+    name: 'squad.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('number,name,positions\n1,Keller,GK\n9,Again,ST\n'),
+  });
+  await expect(squad.getByTestId('csv-report')).toContainText('Added 1 player from squad.csv.');
+  await expect(squad.getByTestId('csv-report')).toContainText('Row 3 skipped: Number 9 is taken by Ariel.');
+  let { save } = await state(page);
+  expect(save.squad.map((m) => [m.number, m.name, m.positions])).toEqual([
+    [9, 'Ariel', ['ST', 'LW']],
+    [10, 'Test', []],
+    [1, 'Keller', ['GK']],
+  ]);
+
+  // Pick Ariel for the 6 spot: the old 9 takes number 6.
+  const six = (await state(page)).board.players.find((p) => p.team === 'home' && p.number === 6)!;
+  const at = await screenPoint(page, six.x, six.y);
+  await page.mouse.click(at.x, at.y);
+  await page.getByLabel('Squad player').selectOption({ label: '9 Ariel · ST/LW' });
+  let board;
+  ({ board } = await state(page));
+  const home = board.players.filter((p) => p.team === 'home');
+  expect(home.find((p) => p.id === six.id)).toMatchObject({ number: 9, name: 'Ariel', memberId: save.squad[0]!.id });
+  expect(new Set(home.map((p) => p.number)).size).toBe(home.length);
+  // A number someone else on the team has is refused.
+  const number = page.getByLabel('Number', { exact: true });
+  await number.fill('1');
+  await number.press('Tab');
+  await expect(page.getByRole('alert')).toHaveText('Number 1 is taken by Keller.');
+  ({ save } = await state(page));
+  expect(save.squad[0]!.number).toBe(9);
 });
 
 test('/soccer lands on a soccer board', async ({ page }) => {

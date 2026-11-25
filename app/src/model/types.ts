@@ -46,6 +46,8 @@ export interface Player {
   role: string;
   x: number;
   y: number;
+  /** The squad member in this spot; their number and name are copied here. */
+  memberId?: string;
 }
 
 export interface Ball {
@@ -142,6 +144,8 @@ export interface Sub {
   replaces: string;
   /** The wave this sub comes on in, or null if not planned yet. */
   waveId: string | null;
+  /** The squad member on the bench; their number and name are copied here. */
+  memberId?: string;
 }
 
 /** A substitution time: every sub in it, and who they replace, shows its colour. */
@@ -195,8 +199,19 @@ export const APP_ID = 'myownsoccertactics';
  * 4. Boards have `playerSize`; the ball has `style`, `colors` and `size`.
  * 5. Boards have `plays` (steps of player and ball moves).
  * 6. Boards have `subs`, `waves` and `gameDay`.
+ * 7. `gameDay.subsShown` can be `none`, and shows subs with game day off too.
+ * 8. Saves have a `squad`; players and subs may name a `memberId`.
  */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
+
+/** One player of our squad. Numbers are unique in the squad. */
+export interface SquadMember {
+  id: string;
+  number: number;
+  name: string;
+  /** Position names, e.g. ["ST", "LW"]. */
+  positions: string[];
+}
 
 /**
  * One player's place in a saved set. fx and fy are fractions of the field
@@ -229,5 +244,7 @@ export interface SaveFile {
   activeBoardId: string;
   boards: Board[];
   savedPositions: SavedPositions[];
+  /** Our players, shared by every board of the save. */
+  squad: SquadMember[];
   updatedAt: string;
 }

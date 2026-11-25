@@ -55,6 +55,7 @@ export function playersInFormation(
       role: spot.role,
       x: spot.x,
       y: spot.y,
+      ...(old?.memberId ? { memberId: old.memberId } : {}),
     };
   });
 }
@@ -104,6 +105,7 @@ export function createSave(name = 'My tactics'): SaveFile {
     activeBoardId: board.id,
     boards: [board],
     savedPositions: [],
+    squad: [],
     updatedAt: nowIso(),
   };
 }

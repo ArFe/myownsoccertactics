@@ -3,10 +3,11 @@ import { createBoard, createSave, nowIso } from './factory';
 import { clampSize, isKnownPreset } from './field';
 import { MAX_PLAYS, MAX_STEPS, STEP_SECONDS, clampSeconds } from './plays';
 import { MAX_SUBS, MAX_WAVES } from './gameDay';
+import { MAX_SQUAD, cleanPositions, fixNumberClashes, tidyMemberLinks, validNumber } from './squad';
 import { DEFAULT_SPORT, SPORT_IDS, getSport } from './sports';
 import type { SportDefinition } from './sports/types';
 import { APP_ID, SAVE_VERSION } from './types';
-import type { Area, Arrow, Board, Cone, FieldSettings, GameDay, Play, PlayStep, Player, SaveFile, Sub, SubWave, SavedPositions, SavedSpot, Team, TeamSide, TextNote } from './types';
+import type { Area, Arrow, Board, Cone, FieldSettings, GameDay, Play, PlayStep, Player, SaveFile, SquadMember, Sub, SubWave, SavedPositions, SavedSpot, Team, TeamSide, TextNote } from './types';
 
 export const STORAGE_KEY = 'myownsoccertactics.save';
 export const BROKEN_KEY = 'myownsoccertactics.save.unreadable';
@@ -138,8 +139,31 @@ function readSubs(v: unknown, players: Player[], waves: SubWave[]): Sub[] {
       name: str(s.name, ''),
       replaces: str(s.replaces, ''),
       waveId: typeof s.waveId === 'string' && waveIds.has(s.waveId) ? s.waveId : null,
+      ...memberLink(s.memberId),
     }))
     .filter((s) => playerIds.has(s.replaces) && !seen.has(s.id) && !!seen.add(s.id));
+}
+
+/** A member id is kept here and checked against the squad once that is read. */
+function memberLink(v: unknown): { memberId?: string } {
+  return typeof v === 'string' && v ? { memberId: v } : {};
+}
+
+/** Squad numbers are unique; a later member with a taken number is dropped. */
+function readSquad(v: unknown): SquadMember[] {
+  const ids = new Set<string>();
+  const numbers = new Set<number>();
+  const out: SquadMember[] = [];
+  list(v).forEach((m, j) => {
+    const number = Math.round(num(m.number, NaN));
+    const memberId = id(m.id, 'm', j);
+    if (!validNumber(number) || numbers.has(number) || ids.has(memberId) || out.length >= MAX_SQUAD) return;
+    ids.add(memberId);
+    numbers.add(number);
+    const positions = Array.isArray(m.positions) ? m.positions.filter((p): p is string => typeof p === 'string') : [];
+    out.push({ id: memberId, number, name: str(m.name, '').slice(0, 40), positions: cleanPositions(positions) });
+  });
+  return out;
 }
 
 function readGameDay(v: unknown, d: GameDay): GameDay {
@@ -168,6 +192,7 @@ function readBoard(v: Obj, i: number): Board {
         role: str(p.role, ''),
         x: num(p.x, 0),
         y: num(p.y, 0),
+        ...memberLink(p.memberId),
       }))
     : d.players;
 
@@ -307,6 +332,11 @@ function v6ToV7(data: Obj): Obj {
   return { ...data, version: 7, boards };
 }
 
+/** Version 7 to 8: saves get a squad (empty). */
+function v7ToV8(data: Obj): Obj {
+  return { ...data, version: 8, squad: [] };
+}
+
 /** Upgrades older save files, one version at a time. */
 export function migrate(data: Obj, from: number): Obj {
   let out = data;
@@ -316,6 +346,7 @@ export function migrate(data: Obj, from: number): Obj {
   if (from < 5) out = v4ToV5(out);
   if (from < 6) out = v5ToV6(out);
   if (from < 7) out = v6ToV7(out);
+  if (from < 8) out = v7ToV8(out);
   return out;
 }
 
@@ -392,6 +423,18 @@ export function parseSave(text: string): SaveFile {
     seen.add(b.id);
   });
 
+  const squad = readSquad(migrated.squad);
+  tidyMemberLinks(boards, squad);
+  // Spots and subs take their member's number and name; no two share a number.
+  const byId = new Map(squad.map((m) => [m.id, m]));
+  for (const b of boards) {
+    for (const h of [...b.players, ...b.subs]) {
+      const m = h.memberId ? byId.get(h.memberId) : undefined;
+      if (m) Object.assign(h, { number: m.number, name: m.name });
+    }
+    fixNumberClashes(b);
+  }
+
   const active = str(migrated.activeBoardId, '');
   return {
     app: APP_ID,
@@ -400,6 +443,7 @@ export function parseSave(text: string): SaveFile {
     activeBoardId: boards.some((b) => b.id === active) ? active : boards[0]!.id,
     boards,
     savedPositions: readSavedPositions(migrated.savedPositions),
+    squad,
     updatedAt: str(migrated.updatedAt, nowIso()),
   };
 }

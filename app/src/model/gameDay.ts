@@ -21,6 +21,11 @@ export function createSub(board: Board, replaces: Player): Sub {
   return { id: newId('sb'), number, name: '', replaces: replaces.id, waveId: null };
 }
 
+function setMember(item: { memberId?: string }, id: string | undefined): void {
+  if (id) item.memberId = id;
+  else delete item.memberId;
+}
+
 export function playerOf(board: Board, sub: Sub): Player | undefined {
   return board.players.find((p) => p.id === sub.replaces);
 }
@@ -77,11 +82,13 @@ export function swapIn(board: Board, subId: string): boolean {
   const sub = board.subs.find((s) => s.id === subId);
   const player = sub && playerOf(board, sub);
   if (!sub || !player) return false;
-  const off = { number: player.number, name: player.name };
+  const off = { number: player.number, name: player.name, memberId: player.memberId };
   player.number = sub.number;
   player.name = sub.name;
+  setMember(player, sub.memberId);
   sub.number = off.number;
   sub.name = off.name;
+  setMember(sub, off.memberId);
   sub.waveId = null;
   return true;
 }
