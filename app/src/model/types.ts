@@ -10,7 +10,7 @@ export type TeamSide = 'home' | 'away';
 export type Orientation = 'horizontal' | 'vertical';
 
 /** Sports the app knows. Each one has a definition in model/sports. */
-export type SportId = 'soccer';
+export type SportId = 'soccer' | 'volleyball';
 
 /** A preset id from the board's sport (e.g. "11v11"), or "custom". */
 export type FieldPreset = string;

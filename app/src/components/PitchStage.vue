@@ -103,6 +103,20 @@ const field = computed(() => {
       strokeWidth: lineWidth,
       fill: hexToRgba(f.lineColor, 0.18),
     })),
+    // A net across the field: a thick band from post to post, posts as dots.
+    nets: drawing.nets.map((n) => ({
+      band: {
+        points: pointsToScreen(v, n.points),
+        stroke: f.lineColor,
+        strokeWidth: lineWidth * 3,
+        opacity: 0.85,
+        lineCap: 'round',
+      },
+      posts: [0, 2].map((i) => {
+        const p = toScreen(v, n.points[i]!, n.points[i + 1]!);
+        return { x: p.x, y: p.y, radius: lineWidth * 2.5, fill: f.lineColor, stroke: '#111827', strokeWidth: Math.max(1, u.value) };
+      }),
+    })),
     spots: drawing.spots.map((s) => {
       const p = toScreen(v, s.x, s.y);
       return { x: p.x, y: p.y, radius: Math.max(1.5, s.r * v.scale), fill: f.lineColor };
@@ -778,6 +792,10 @@ defineExpose({ getStage, cancelDraft, finishPolygon, view });
         <v-line v-for="(g, i) in field.goals" :key="'g' + i" :config="g" />
         <v-line v-for="(l, i) in field.lines" :key="'l' + i" :config="l" />
         <v-circle v-for="(s, i) in field.spots" :key="'p' + i" :config="s" />
+        <template v-for="(n, i) in field.nets" :key="'n' + i">
+          <v-line :config="n.band" />
+          <v-circle v-for="(p, j) in n.posts" :key="j" :config="p" />
+        </template>
         <template v-if="bench">
           <v-rect :config="bench.background" />
           <v-text :config="bench.label" />

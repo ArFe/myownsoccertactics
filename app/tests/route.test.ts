@@ -9,6 +9,7 @@ describe('sportFromPath', () => {
     expect(sportFromPath('/soccer')).toBe('soccer');
     expect(sportFromPath('/soccer/')).toBe('soccer');
     expect(sportFromPath('/Soccer')).toBe('soccer');
+    expect(sportFromPath('/volleyball')).toBe('volleyball');
   });
 
   it('every sport has a route, and back', () => {

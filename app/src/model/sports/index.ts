@@ -1,10 +1,12 @@
 import type { SportId } from '../types';
 import type { SportDefinition } from './types';
 import { SOCCER } from './soccer';
+import { VOLLEYBALL } from './volleyball';
 
 /** All sports. Add a new one here, then the sports test checks it. */
 export const SPORTS: Record<SportId, SportDefinition> = {
   soccer: SOCCER,
+  volleyball: VOLLEYBALL,
 };
 
 export const SPORT_IDS = Object.keys(SPORTS) as SportId[];

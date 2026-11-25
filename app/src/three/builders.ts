@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BALL_STYLES, sizeScale } from '@/model/balls';
-import type { FieldDrawing } from '@/model/sports/types';
+import type { FieldDrawing, Net } from '@/model/sports/types';
 import type { Area, Arrow, Ball, Board, Cone, Player, Team, TextNote } from '@/model/types';
 
 // World: x along the length, z across the width, y up, centre of the field
@@ -143,6 +143,7 @@ export function buildField(board: Board, drawing: FieldDrawing, runoff: number):
   }
 
   for (const goal of drawing.goals) g.add(buildGoal(board, goal.points, drawing.goalHeight, lineColor));
+  for (const n of drawing.nets) g.add(buildNet(board, n, lineColor));
   return g;
 }
 
@@ -212,6 +213,23 @@ export function buildGoal(board: Board, points: number[], height: number, color:
   g.add(net(back[0]!, back[1]!, up(back[1]!, backH), up(back[0]!, backH)));
   g.add(net(up(front[0]!, height), up(front[1]!, height), up(back[1]!, backH), up(back[0]!, backH)));
   for (const i of [0, 1]) g.add(net(front[i]!, back[i]!, up(back[i]!, backH), up(front[i]!, height)));
+  return g;
+}
+
+/** A net across the field: two posts, a mesh `depth` deep, and a band on top. */
+export function buildNet(board: Board, n: Net, color: string): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'net';
+  const a = to3(board, n.points[0]!, n.points[1]!);
+  const b = to3(board, n.points[2]!, n.points[3]!);
+  const up = (p: THREE.Vector3, h: number) => p.clone().setY(h);
+  const low = n.height - n.depth;
+  const mat = standard(color);
+  g.add(bar(a, up(a, n.height), 0.05, mat));
+  g.add(bar(b, up(b, n.height), 0.05, mat));
+  g.add(bar(up(a, n.height), up(b, n.height), 0.03, mat));
+  g.add(bar(up(a, low), up(b, low), 0.01, mat));
+  g.add(net(up(a, low), up(b, low), up(b, n.height), up(a, n.height)));
   return g;
 }
 

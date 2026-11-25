@@ -4,6 +4,10 @@ A web app to draw and explain soccer tactics. It runs fully in the browser.
 
 - Fields: 11v11 (105 × 68 m), 7v7 (55 × 36 m) or any custom size.
 - Default formations for both sizes. Every colour and name can be changed.
+- Volleyball: indoor 6v6 (18 × 9 m, 5-1, 4-2 or 6-2) or beach 2v2
+  (16 × 8 m), with the net across the middle in 2D and 3D.
+- Switch sport at the top of the sidebar. Each sport has its own address
+  (`/soccer`, `/volleyball`); one save holds boards of every sport.
 - Mark areas on the field (rectangle, ellipse, polygon), with a name, colour
   and transparency.
 - Arrows for passes and runs, text notes, cones and the ball.
@@ -61,7 +65,7 @@ npm run check       # all of the above
 ```
 app/src/model/       plain TypeScript: types, metre <-> pixel view,
                      undo history, save file reading and upgrades
-app/src/model/sports/  one folder per sport (soccer for now): presets,
+app/src/model/sports/  one folder per sport (soccer, volleyball): presets,
                      markings, field lines, formations
 app/src/stores/      one Pinia store; every change goes through it
 app/src/components/  Vue components; PitchStage draws with Konva
