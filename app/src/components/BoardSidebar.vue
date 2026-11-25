@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useSaveStore, type Tool } from '@/stores/save';
 import { presetLabel } from '@/model/field';
-import { getSport } from '@/model/sports';
+import { SPORTS, SPORT_IDS, getSport } from '@/model/sports';
 import Icon from './Icon.vue';
 
 const store = useSaveStore();
@@ -30,6 +30,23 @@ const HINTS: Partial<Record<Tool, string>> = {
 
 <template>
   <nav class="sidebar" aria-label="Boards and tools">
+    <section class="stack">
+      <div class="head">
+        <h2 class="section-title">Sport</h2>
+      </div>
+      <div class="seg" role="group" aria-label="Sport">
+        <button
+          v-for="id in SPORT_IDS"
+          :key="id"
+          type="button"
+          :aria-pressed="store.board.sport === id"
+          @click="store.openSport(id)"
+        >
+          {{ SPORTS[id].name }}
+        </button>
+      </div>
+    </section>
+
     <section class="stack">
       <div class="head">
         <h2 class="section-title">Boards in this save</h2>

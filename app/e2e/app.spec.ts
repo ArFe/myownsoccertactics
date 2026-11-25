@@ -548,3 +548,42 @@ test('/ and unknown addresses land on soccer', async ({ page }) => {
     expect(new URL(page.url()).pathname).toBe('/soccer');
   }
 });
+
+test('/volleyball lands on an indoor volleyball court, with a net and six a side', async ({ page }) => {
+  await page.goto('/volleyball');
+  await expect(page.locator('[data-testid="pitch"] canvas').first()).toBeVisible();
+  await expect(page.getByText('Indoor 6v6 · 18 × 9 m')).toBeVisible();
+  const { board } = await state(page);
+  expect(board.sport).toBe('volleyball');
+  expect(board.ball.style).toBe('volleyball');
+  expect(board.players).toHaveLength(12);
+  expect(new URL(page.url()).pathname).toBe('/volleyball');
+});
+
+test('the sport switch opens a board of that sport, and the address and Back follow', async ({ page }) => {
+  const sport = page.getByRole('group', { name: 'Sport' });
+  const soccerBoard = (await state(page)).board.id;
+
+  await sport.getByRole('button', { name: 'Volleyball' }).click();
+  await expect(page.getByText('Indoor 6v6 · 18 × 9 m')).toBeVisible();
+  await expect(sport.getByRole('button', { name: 'Volleyball' })).toHaveAttribute('aria-pressed', 'true');
+  let { save, board } = await state(page);
+  expect(board.sport).toBe('volleyball');
+  expect(save.boards).toHaveLength(2);
+  expect(new URL(page.url()).pathname).toBe('/volleyball');
+
+  // Back to soccer opens the soccer board there was, not a new one.
+  await sport.getByRole('button', { name: 'Soccer' }).click();
+  ({ save, board } = await state(page));
+  expect(board.id).toBe(soccerBoard);
+  expect(save.boards).toHaveLength(2);
+  expect(new URL(page.url()).pathname).toBe('/soccer');
+
+  // Picking the volleyball board in the list moves the address too.
+  await page.getByRole('button', { name: /Indoor 6v6/ }).click();
+  expect(new URL(page.url()).pathname).toBe('/volleyball');
+
+  await page.goBack();
+  await expect.poll(async () => (await state(page)).board.sport).toBe('soccer');
+  expect(new URL(page.url()).pathname).toBe('/soccer');
+});

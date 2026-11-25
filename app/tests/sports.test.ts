@@ -60,7 +60,7 @@ describe.each(SPORT_IDS.map((id) => [id, SPORTS[id]] as const))('sport: %s', (id
       const pad = sport.runoff(field);
       const d = sport.drawField(field);
       expect(d.lines.length).toBeGreaterThan(0);
-      for (const line of [...d.lines, ...d.goals]) {
+      for (const line of [...d.lines, ...d.goals, ...d.nets]) {
         line.points.forEach((v, i) => {
           const max = i % 2 === 0 ? field.length : field.width;
           expect(v).toBeGreaterThanOrEqual(-pad);

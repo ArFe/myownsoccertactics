@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createBoard } from '@/model/factory';
 import { getSport } from '@/model/sports';
-import { buildGoal, figureKey, ribbon, to3, wrapWords } from '@/three/builders';
+import { buildGoal, buildNet, figureKey, ribbon, to3, wrapWords } from '@/three/builders';
 import { EYE_FOV, lookAt, lookTarget, orbitStart, turn, zoomFov, MAX_PITCH } from '@/three/cameras';
 import { SceneSync } from '@/three/sync';
 
@@ -44,6 +44,21 @@ describe('3D shapes', () => {
     expect(top.max.x).toBeCloseTo(-52.5, 0);
     expect(getSport('soccer').drawField(createBoard('soccer', '7v7').field).goalHeight).toBe(1.83);
   });
+
+  it('stands the volleyball net across the middle, posts outside the court', () => {
+    const board = createBoard('volleyball');
+    const drawing = getSport('volleyball').drawField(board.field);
+    expect(drawing.goals).toHaveLength(0);
+    const net = buildNet(board, drawing.nets[0]!, '#FFFFFF');
+    net.updateMatrixWorld();
+    const box = new THREE.Box3().setFromObject(net);
+    expect(box.max.y).toBeGreaterThan(2.4);
+    expect(box.max.y).toBeLessThan(2.5);
+    // On the centre line (x = 0), wider than the 9 m court.
+    expect(box.min.x).toBeCloseTo(0, 0);
+    expect(box.max.x).toBeCloseTo(0, 0);
+    expect(box.max.z - box.min.z).toBeGreaterThan(10.9);
+  });
 });
 
 describe('note wrapping in 3D', () => {
@@ -63,6 +78,13 @@ describe('cameras', () => {
     expect(side.y).toBeGreaterThan(20);
     const end = orbitStart({ ...board.field, orientation: 'vertical' });
     expect(end.x).toBeLessThan(-board.field.length / 2);
+  });
+
+  it('keeps the orbit camera back on a small court, where figures are big', () => {
+    const court = createBoard('volleyball').field;
+    expect(orbitStart(court)).toEqual(orbitStart({ ...court, length: 32 }));
+    const big = createBoard().field;
+    expect(orbitStart(big).y).toBeCloseTo(big.length * 0.38);
   });
 
   it('faces a target, and a drag turns the head but never past straight up or down', () => {

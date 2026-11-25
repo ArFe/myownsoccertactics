@@ -19,6 +19,17 @@ export interface Rect {
   h: number;
 }
 
+/**
+ * A net standing across the field (volleyball), from post to post. In 2D it
+ * is a thick line; in 3D a mesh `depth` deep hanging from `height`.
+ */
+export interface Net {
+  /** The two posts: [x1, y1, x2, y2]. */
+  points: number[];
+  height: number;
+  depth: number;
+}
+
 /** Everything drawn on the surface, in metres. */
 export interface FieldDrawing {
   lines: Polyline[];
@@ -28,6 +39,7 @@ export interface FieldDrawing {
    */
   goals: Polyline[];
   goalHeight: number;
+  nets: Net[];
   spots: Spot[];
   /** Lighter bands on the surface (mown grass). */
   stripes: Rect[];

@@ -157,5 +157,5 @@ export function drawSoccerField(field: FieldSettings): FieldDrawing {
     for (let i = 0; i < count; i += 2) stripes.push({ x: i * sw, y: 0, w: sw, h: W });
   }
 
-  return { lines, goals, goalHeight: d.goalHeight, spots, stripes };
+  return { lines, goals, goalHeight: d.goalHeight, nets: [], spots, stripes };
 }

@@ -6,13 +6,18 @@ export interface Vec3 {
   z: number;
 }
 
+/** The camera starts as far back as for a field this long, at least. */
+export const MIN_VIEW_LENGTH = 32;
+
 /**
  * Where the orbit camera starts: high on the side of the field, like a TV
  * camera, looking at the centre. A vertical board is seen from behind the
  * home goal instead, as it is drawn in 2D.
  */
 export function orbitStart(field: Pick<FieldSettings, 'length' | 'width' | 'orientation'>): Vec3 {
-  const L = field.length;
+  // Figures are drawn bigger than life, so a small court (volleyball) needs
+  // the camera further back than its length alone would put it.
+  const L = Math.max(field.length, MIN_VIEW_LENGTH);
   if (field.orientation === 'vertical') return { x: -L * 1.05, y: L * 0.62, z: 0 };
   return { x: 0, y: L * 0.38, z: field.width / 2 + L * 0.38 };
 }
