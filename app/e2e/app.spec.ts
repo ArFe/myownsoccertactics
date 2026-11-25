@@ -528,7 +528,24 @@ test('game day: one team, times with colours, subs on the bench and in the PNG',
   ({ board } = await state(page));
   expect(board.teams.away.visible).toBe(true);
   expect(board.subs).toHaveLength(1); // the plan is kept
+  // The switch works with game day off too: the bench stays until "None".
+  expect(await pngHeight()).toBe(withBench);
+  await card.getByRole('group', { name: 'Show subs' }).getByRole('button', { name: 'None' }).click();
+  expect((await state(page)).board.gameDay.subsShown).toBe('none');
   expect(withBench).toBeGreaterThan(await pngHeight());
+});
+
+test('game day: clicking a player shows its subs, and a sub can be added there', async ({ page }) => {
+  await page.getByRole('button', { name: 'Game day: off' }).click();
+  const nine = (await state(page)).board.players.find((p) => p.team === 'home' && p.number === 9)!;
+  const at = await screenPoint(page, nine.x, nine.y);
+  await page.mouse.click(at.x, at.y);
+  const panel = page.getByTestId('player-subs');
+  await expect(panel.getByText('Subs for 9')).toBeVisible();
+  await panel.getByRole('button', { name: 'Add a sub' }).click();
+  await panel.getByTestId('sub-12').getByLabel('Sub name').fill('Ana');
+  const { board } = await state(page);
+  expect(board.subs).toMatchObject([{ number: 12, name: 'Ana', replaces: nine.id }]);
 });
 
 test('/soccer lands on a soccer board', async ({ page }) => {

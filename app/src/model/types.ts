@@ -152,7 +152,7 @@ export interface SubWave {
   minute: number;
 }
 
-export type SubsShown = 'bench' | 'beside' | 'both';
+export type SubsShown = 'none' | 'bench' | 'beside' | 'both';
 
 /** Game day mode: only our team, its subs and the wave colours. */
 export interface GameDay {
@@ -196,7 +196,7 @@ export const APP_ID = 'myownsoccertactics';
  * 5. Boards have `plays` (steps of player and ball moves).
  * 6. Boards have `subs`, `waves` and `gameDay`.
  */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 /**
  * One player's place in a saved set. fx and fy are fractions of the field

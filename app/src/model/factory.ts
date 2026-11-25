@@ -90,7 +90,7 @@ export function createBoard(sportId: SportId = DEFAULT_SPORT, presetId?: string,
     plays: [],
     subs: [],
     waves: [],
-    gameDay: { on: false, team: 'home', subsShown: 'bench' },
+    gameDay: { on: false, team: 'home', subsShown: 'none' },
     updatedAt: nowIso(),
   };
 }

@@ -111,7 +111,19 @@ describe('game day in the save file', () => {
     const b = parseSave(JSON.stringify(v5)).boards[0]!;
     expect(b.subs).toEqual([]);
     expect(b.waves).toEqual([]);
-    expect(b.gameDay).toEqual({ on: false, team: 'home', subsShown: 'bench' });
+    expect(b.gameDay).toEqual({ on: false, team: 'home', subsShown: 'none' });
+  });
+
+  it('a version 6 save keeps its look: subs hidden where game day is off', () => {
+    const v6 = createSave() as unknown as Record<string, any>;
+    v6.version = 6;
+    v6.boards = [
+      { ...v6.boards[0], gameDay: { on: false, team: 'home', subsShown: 'both' } },
+      { ...v6.boards[0], id: 'b2', gameDay: { on: true, team: 'away', subsShown: 'beside' } },
+    ];
+    const [off, on] = parseSave(JSON.stringify(v6)).boards;
+    expect(off!.gameDay).toEqual({ on: false, team: 'home', subsShown: 'none' });
+    expect(on!.gameDay).toEqual({ on: true, team: 'away', subsShown: 'beside' });
   });
 
   it('drops subs for unknown players, unknown times and bad values', () => {
@@ -127,7 +139,7 @@ describe('game day in the save file', () => {
     expect(back.waves).toEqual([{ id: 'w1', color: '#2563EB', minute: 150 }]);
     expect(back.subs).toHaveLength(1);
     expect(back.subs[0]).toMatchObject({ id: 's1', waveId: null });
-    expect(back.gameDay).toEqual({ on: false, team: 'home', subsShown: 'bench' });
+    expect(back.gameDay).toEqual({ on: false, team: 'home', subsShown: 'none' });
   });
 });
 

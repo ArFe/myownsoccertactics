@@ -51,7 +51,12 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   id; `tidySubs()` runs on every board change, so a sub whose player is
   gone (smaller team, new preset) goes too. The bench is drawn by
   `PitchStage` under the field, so PNGs and the zip include it; the 3D
-  view does not show subs.
+  view does not show subs. The "Show subs" switch (none, bench, beside,
+  both; save version 7) works with game day on or off; game day only
+  hides the other team. Beside a player, each sub is a tag with its
+  name (its number if it has none). In game day, a selected player of
+  our team lists its subs in the Selection panel; the row (`SubRow.vue`)
+  is shared with the Game day card.
 - All changes to a save go through the store (`stores/save.ts`), so undo and
   autosave see them.
 - Changing the save file shape: bump `SAVE_VERSION` and add a step to
