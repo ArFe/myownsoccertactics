@@ -9,6 +9,11 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   `SportDefinition` interface. Everything else reads `getSport(board.sport)`
   or `store.sport`; never hard-code "11v11", a marking key or a formation
   outside that folder.
+- Each sport has a route: `/<sport id>` (`/soccer`) opens a board of that
+  sport (`model/route.ts`, `openSport()` in the store). `/` and unknown
+  addresses land on the default sport and show `/soccer`. On the site, a
+  CloudFront function serves `index.html` for any path with no file
+  extension (`infra/envs/prod/main.tf`).
 - Ball looks live in `model/balls.ts`: shapes drawn in units of the ball's
   radius, with named colour slots; `tests/balls.test.ts` checks each style.
 - Adding a sport: write `model/sports/<sport>/`, add its id to `SportId` in

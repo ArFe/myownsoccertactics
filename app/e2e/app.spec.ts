@@ -530,3 +530,21 @@ test('game day: one team, times with colours, subs on the bench and in the PNG',
   expect(board.subs).toHaveLength(1); // the plan is kept
   expect(withBench).toBeGreaterThan(await pngHeight());
 });
+
+test('/soccer lands on a soccer board', async ({ page }) => {
+  await page.goto('/soccer');
+  await expect(page.locator('[data-testid="pitch"] canvas').first()).toBeVisible();
+  await expect(page.getByText('11v11 · 105 × 68 m')).toBeVisible();
+  const { board } = await state(page);
+  expect(board.sport).toBe('soccer');
+  expect(new URL(page.url()).pathname).toBe('/soccer');
+});
+
+test('/ and unknown addresses land on soccer', async ({ page }) => {
+  for (const path of ['/', '/no-such-page']) {
+    await page.goto(path);
+    await expect(page.locator('[data-testid="pitch"] canvas').first()).toBeVisible();
+    expect((await state(page)).board.sport).toBe('soccer');
+    expect(new URL(page.url()).pathname).toBe('/soccer');
+  }
+});

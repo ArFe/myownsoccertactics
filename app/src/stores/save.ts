@@ -33,6 +33,7 @@ import type {
   PlayStep,
   Player,
   SaveFile,
+  SportId,
   Sub,
   SubsShown,
   SubWave,
@@ -191,6 +192,25 @@ export const useSaveStore = defineStore('save', () => {
     if (!save.value.boards.some((b) => b.id === id)) return;
     save.value.activeBoardId = id;
     selection.value = null;
+  }
+
+  /**
+   * Opens a board of the given sport (from the page address, e.g. `/soccer`):
+   * the open board if it is one, else the first one, else a new one with the
+   * sport's default settings.
+   */
+  function openSport(id: SportId): void {
+    if (board.value.sport === id) return;
+    const existing = save.value.boards.find((b) => b.sport === id);
+    if (existing) {
+      setActiveBoard(existing.id);
+      return;
+    }
+    const b = createBoard(id, undefined, `Board ${save.value.boards.length + 1}`);
+    save.value.boards.push(b);
+    save.value.activeBoardId = b.id;
+    selection.value = null;
+    commit();
   }
   // Another board has its own plays.
   watch(
@@ -806,6 +826,7 @@ export const useSaveStore = defineStore('save', () => {
     saveNow,
     renameSave,
     setActiveBoard,
+    openSport,
     addBoard,
     duplicateBoard,
     deleteBoard,

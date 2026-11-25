@@ -31,6 +31,7 @@ All in [envs/prod/main.tf](envs/prod/main.tf).
 | Route 53 zone | global | registrar stays Web Hosting Canada (WHC) |
 | ACM certificate | us-east-1 | apex + `www`; CloudFront needs us-east-1 |
 | Deploy role | global | S3 upload + invalidation only |
+| CloudFront function | global | `/soccer` and other paths with no file extension get `index.html` |
 
 Shared with the tournament manager, **not** created here:
 

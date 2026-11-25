@@ -265,6 +265,25 @@ resource "aws_cloudfront_response_headers_policy" "web" {
   }
 }
 
+# The app reads the sport from the address (`/soccer`), but S3 has no file
+# there. An address with no file extension gets index.html instead; files
+# (`/assets/x.js`, `/favicon.svg`) pass through as they are. The app sends
+# `/` and unknown addresses to the default sport's route.
+resource "aws_cloudfront_function" "routes" {
+  name    = "${local.name_prefix}-routes"
+  runtime = "cloudfront-js-2.0"
+  comment = "Serve index.html for app routes such as /soccer"
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      var last = request.uri.split('/').pop();
+      if (last.indexOf('.') === -1) request.uri = '/index.html';
+      return request;
+    }
+  EOT
+}
+
 resource "aws_cloudfront_distribution" "web" {
   enabled             = true
   is_ipv6_enabled     = true
@@ -278,7 +297,7 @@ resource "aws_cloudfront_distribution" "web" {
     origin_access_control_id = aws_cloudfront_origin_access_control.web.id
   }
 
-  # No SPA fallback function: the app has no client-side routes, only "/".
+  # Sport routes (`/soccer`) are served index.html by the function below.
   default_cache_behavior {
     target_origin_id           = "s3"
     viewer_protocol_policy     = "redirect-to-https"
@@ -287,6 +306,11 @@ resource "aws_cloudfront_distribution" "web" {
     compress                   = true
     cache_policy_id            = local.cache_optimized_id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.web.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.routes.arn
+    }
   }
 
   restrictions {
