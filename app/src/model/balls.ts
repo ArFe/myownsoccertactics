@@ -94,12 +94,8 @@ function volleyballParts(): BallPart[] {
     const [c2x, c2y] = at(0.8, toDeg - 45);
     return `M 0 0 Q ${f(c1x)} ${f(c1y)} ${f(ax)} ${f(ay)} L ${f(bx)} ${f(by)} Q ${f(c2x)} ${f(c2y)} 0 0 Z`;
   };
-  const parts: BallPart[] = [];
-  for (const a of [-90, 30, 150]) {
-    parts.push({ path: panel(a, a + 50), color: 'panel2' });
-    parts.push({ path: panel(a + 50, a + 75), color: 'panel3' });
-  }
-  return parts;
+  // Yellow and blue only, like a match ball: three blue swirls on yellow.
+  return [-90, 30, 150].map((a) => ({ path: panel(a, a + 60), color: 'panel2' }));
 }
 
 function basketballParts(): BallPart[] {
@@ -140,9 +136,8 @@ export const BALL_STYLES: Record<BallStyleId, BallStyle> = {
     label: 'Volleyball',
     shape: 'round',
     colors: [
-      { key: 'panel1', label: 'Panel 1', default: '#FFFFFF' },
+      { key: 'panel1', label: 'Panel 1', default: '#FFD23F' },
       { key: 'panel2', label: 'Panel 2', default: '#1E5AA8' },
-      { key: 'panel3', label: 'Panel 3', default: '#FFD23F' },
     ],
     body: 'panel1',
     parts: volleyballParts(),

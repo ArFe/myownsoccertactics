@@ -45,6 +45,16 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   so plays run in 3D too. Goal height comes from the sport's drawing
   (`goalHeight`). Players and the ball are drawn 1.5× life size, or they
   vanish on a full field. Editing stays in 2D.
+- Poses are 3D only (`model/pose.ts`, save version 9): each player may
+  have `arms` (`up`; missing = down) and `lift` (metres off the ground,
+  0 to 1.5; missing = 0). Defaults are left out of the file. With a step
+  open, `setPlayerPose()` writes the pose into the step's spot, like a
+  move; playback blends the height and switches arms half way. `lift` is
+  not in `figureKey`, so a jump only moves the figure (`liftY`). The
+  board's `numberSpot` (`top`, `shirt`, `off`) applies to every player
+  and is picked in the 3D view's bar. A click (not a drag) on a figure
+  in 3D selects that player (`SceneSync.pickPlayer`), so the Selection
+  panel can edit it there; a yellow ring on the grass marks it.
 - Download names go through `stampedName()` in `export/download.ts`
   (`name_YYYY-MM-DD_HH-MM-SS.ext`); use it for any new download.
 - Every downloaded PNG, GIF and video names the site (`SITE` in

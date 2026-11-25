@@ -9,6 +9,7 @@ import { applyPositions, capturePositions, type PositionTarget } from '@/model/p
 import type { SportDefinition } from '@/model/sports/types';
 import { clampToField, round, scaleBoardContents, tidy } from '@/model/geometry';
 import { createHistory } from '@/model/history';
+import { poseOf, setPose, spotOf, type Pose } from '@/model/pose';
 import { MAX_SUBS, MAX_WAVES, createSub, createWave, swapIn, tidySubs } from '@/model/gameDay';
 import {
   MAX_SQUAD,
@@ -47,6 +48,7 @@ import type {
   Board,
   Cone,
   FieldSettings,
+  NumberSpot,
   Play,
   PlayStep,
   Player,
@@ -539,8 +541,15 @@ export const useSaveStore = defineStore('save', () => {
     changeBoard((b) => {
       const seen = boardAtStep(b, step);
       fn(seen);
-      const base = new Map(b.players.map((p) => [p.id, { x: p.x, y: p.y }]));
-      b.players = seen.players.map((p) => ({ ...p, ...(base.get(p.id) ?? {}) }));
+      // The board keeps its own places and poses; the step gets what was seen.
+      const base = new Map(b.players.map((p) => [p.id, p]));
+      b.players = seen.players.map((p) => {
+        const own = base.get(p.id);
+        if (!own) return p;
+        const kept = { ...p, x: own.x, y: own.y };
+        setPose(kept, poseOf(own));
+        return kept;
+      });
       b.teams.home.formation = seen.teams.home.formation;
       b.teams.away.formation = seen.teams.away.formation;
       const now = captureStep(seen);
@@ -554,9 +563,27 @@ export const useSaveStore = defineStore('save', () => {
     changeBoard((b) => {
       const p = b.players.find((q) => q.id === id);
       if (!p) return;
-      if (step) step.players[id] = place(b, x, y, snap);
+      // A step spot keeps its pose; a player not on the step yet takes the board's.
+      if (step) step.players[id] = { ...(step.players[id] ?? spotOf(p)), ...place(b, x, y, snap) };
       else Object.assign(p, place(b, x, y, snap));
     });
+  }
+
+  /**
+   * Arms up or down and height off the ground. With a step open the pose goes
+   * into the step, as places do, so a play can show a jump.
+   */
+  function setPlayerPose(id: string, pose: Partial<Pose>): void {
+    const step = editingStep();
+    const key = `pose-${id}-${Object.keys(pose).join()}`;
+    changeBoard((b) => {
+      const p = b.players.find((q) => q.id === id);
+      if (!p) return;
+      if (!step) return setPose(p, pose);
+      const spot = step.players[id] ?? spotOf(p);
+      setPose(spot, pose);
+      step.players[id] = spot;
+    }, key);
   }
 
   function moveBall(x: number, y: number, snap = false): void {
@@ -681,6 +708,10 @@ export const useSaveStore = defineStore('save', () => {
 
   function setPlayerSize(size: SizeId): void {
     changeBoard((b) => (b.playerSize = size));
+  }
+
+  function setNumberSpot(spot: NumberSpot): void {
+    changeBoard((b) => (b.numberSpot = spot));
   }
 
   // ----- game day and substitutes -----
@@ -989,6 +1020,8 @@ export const useSaveStore = defineStore('save', () => {
     setBallColor,
     setBallSize,
     setPlayerSize,
+    setNumberSpot,
+    setPlayerPose,
     setGameDay,
     setGameDayTeam,
     setSubsShown,

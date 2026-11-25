@@ -76,6 +76,7 @@ export function createBoard(sportId: SportId = DEFAULT_SPORT, presetId?: string,
       ...playersInFormation(sport, 'away', defaults.away, field),
     ],
     playerSize: 'm',
+    numberSpot: 'top',
     ball: {
       x: field.length / 2,
       y: field.width / 2,

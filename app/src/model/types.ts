@@ -48,7 +48,15 @@ export interface Player {
   y: number;
   /** The squad member in this spot; their number and name are copied here. */
   memberId?: string;
+  /** Arms up (a block, a header); missing means down. Shown in 3D only. */
+  arms?: ArmPose;
+  /** Metres off the ground (a jump); missing means 0. Shown in 3D only. */
+  lift?: number;
 }
+
+export type ArmPose = 'down' | 'up';
+/** Where the 3D view shows a player's number. */
+export type NumberSpot = 'top' | 'shirt' | 'off';
 
 export interface Ball {
   x: number;
@@ -121,6 +129,8 @@ export interface Board {
   players: Player[];
   /** One size for every player on the board. */
   playerSize: SizeId;
+  /** Where every player's number shows in 3D: above the head, on the shirt, or not at all. */
+  numberSpot: NumberSpot;
   ball: Ball;
   areas: Area[];
   arrows: Arrow[];
@@ -171,13 +181,19 @@ export interface Spot {
   y: number;
 }
 
+/** Where a player stands on a step, and how: arms and height as on `Player`. */
+export interface PlayerSpot extends Spot {
+  arms?: ArmPose;
+  lift?: number;
+}
+
 /** One step of a play: where everyone stands, and which drawings show. */
 export interface PlayStep {
   id: string;
   /** Seconds to move here from the step before. Not used on the first step. */
   duration: number;
   /** By player id. A player missing here stands where the board has them. */
-  players: Record<string, Spot>;
+  players: Record<string, PlayerSpot>;
   ball: Spot & { visible: boolean };
   /** Ids of areas, arrows, notes and cones not shown on this step. */
   hidden: string[];
@@ -201,8 +217,9 @@ export const APP_ID = 'myownsoccertactics';
  * 6. Boards have `subs`, `waves` and `gameDay`.
  * 7. `gameDay.subsShown` can be `none`, and shows subs with game day off too.
  * 8. Saves have a `squad`; players and subs may name a `memberId`.
+ * 9. Boards have `numberSpot`; players and step spots may have `arms` and `lift`.
  */
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 /** One player of our squad. Numbers are unique in the squad. */
 export interface SquadMember {

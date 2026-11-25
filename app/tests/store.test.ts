@@ -261,10 +261,10 @@ describe('ball and player sizes in the store', () => {
     const s = freshStore();
     expect(s.board.ball).toMatchObject({ style: 'soccer', size: 'm' });
     s.setBallStyle('volleyball');
-    expect(s.board.ball.colors).toEqual({ panel1: '#FFFFFF', panel2: '#1E5AA8', panel3: '#FFD23F' });
+    expect(s.board.ball.colors).toEqual({ panel1: '#FFD23F', panel2: '#1E5AA8' });
     s.setBallColor('panel2', '#123456');
     s.setBallColor('patches', '#000000'); // not a volleyball slot: ignored
-    expect(s.board.ball.colors).toEqual({ panel1: '#FFFFFF', panel2: '#123456', panel3: '#FFD23F' });
+    expect(s.board.ball.colors).toEqual({ panel1: '#FFD23F', panel2: '#123456' });
     s.setBallSize('xl');
     expect(s.board.ball.size).toBe('xl');
     s.undo();

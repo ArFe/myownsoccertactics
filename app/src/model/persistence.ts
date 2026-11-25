@@ -3,11 +3,12 @@ import { createBoard, createSave, nowIso } from './factory';
 import { clampSize, isKnownPreset } from './field';
 import { MAX_PLAYS, MAX_STEPS, STEP_SECONDS, clampSeconds } from './plays';
 import { MAX_SUBS, MAX_WAVES } from './gameDay';
+import { setPose } from './pose';
 import { MAX_SQUAD, cleanPositions, fixNumberClashes, tidyMemberLinks, validNumber } from './squad';
 import { DEFAULT_SPORT, SPORT_IDS, getSport } from './sports';
 import type { SportDefinition } from './sports/types';
 import { APP_ID, SAVE_VERSION } from './types';
-import type { Area, Arrow, Board, Cone, FieldSettings, GameDay, Play, PlayStep, Player, SaveFile, SquadMember, Sub, SubWave, SavedPositions, SavedSpot, Team, TeamSide, TextNote } from './types';
+import type { Area, Arrow, ArmPose, Board, Cone, FieldSettings, GameDay, NumberSpot, Play, PlayStep, Player, PlayerSpot, SaveFile, SquadMember, Sub, SubWave, SavedPositions, SavedSpot, Team, TeamSide, TextNote } from './types';
 
 export const STORAGE_KEY = 'myownsoccertactics.save';
 export const BROKEN_KEY = 'myownsoccertactics.save.unreadable';
@@ -75,6 +76,16 @@ function readSpot(v: unknown, d: { x: number; y: number }): { x: number; y: numb
   return isObj(v) ? { x: num(v.x, d.x), y: num(v.y, d.y) } : { ...d };
 }
 
+/** Arms and height of a player or step spot; defaults are left out. */
+function withPose<T extends { arms?: ArmPose; lift?: number }>(target: T, v: Obj): T {
+  setPose(target, { arms: oneOf<ArmPose>(v.arms, ['down', 'up'], 'down'), lift: num(v.lift, 0) });
+  return target;
+}
+
+function readPlayerSpot(v: Obj): PlayerSpot {
+  return withPose<PlayerSpot>(readSpot(v, { x: 0, y: 0 }), v);
+}
+
 /**
  * Plays keep only what the board has: steps name players and drawings by id,
  * so ids the board does not know are dropped.
@@ -97,7 +108,7 @@ function readPlays(v: unknown, players: Player[], drawingIds: Set<string>, ball:
             players: Object.fromEntries(
               Object.entries(spots)
                 .filter(([pid, spot]) => playerIds.has(pid) && isObj(spot))
-                .map(([pid, spot]) => [pid, readSpot(spot, { x: 0, y: 0 })]),
+                .map(([pid, spot]) => [pid, readPlayerSpot(spot as Obj)]),
             ),
             ball: { ...readSpot(b, ball), visible: bool(b.visible, ball.visible) },
             hidden: Array.isArray(st.hidden)
@@ -184,16 +195,21 @@ function readBoard(v: Obj, i: number): Board {
   const ball = isObj(v.ball) ? v.ball : {};
 
   const players: Player[] = Array.isArray(v.players)
-    ? list(v.players).map((p, j) => ({
-        id: id(p.id, `p${i}`, j),
-        team: oneOf<TeamSide>(p.team, ['home', 'away'], 'home'),
-        number: Math.round(num(p.number, j + 1)),
-        name: str(p.name, ''),
-        role: str(p.role, ''),
-        x: num(p.x, 0),
-        y: num(p.y, 0),
-        ...memberLink(p.memberId),
-      }))
+    ? list(v.players).map((p, j) =>
+        withPose<Player>(
+          {
+            id: id(p.id, `p${i}`, j),
+            team: oneOf<TeamSide>(p.team, ['home', 'away'], 'home'),
+            number: Math.round(num(p.number, j + 1)),
+            name: str(p.name, ''),
+            role: str(p.role, ''),
+            x: num(p.x, 0),
+            y: num(p.y, 0),
+            ...memberLink(p.memberId),
+          },
+          p,
+        ),
+      )
     : d.players;
 
   const areas: Area[] = list(v.areas).map((a, j) => ({
@@ -251,6 +267,7 @@ function readBoard(v: Obj, i: number): Board {
     teams: { home: readTeam(teams.home, d.teams.home), away: readTeam(teams.away, d.teams.away) },
     players,
     playerSize: oneOf(v.playerSize, SIZE_IDS, d.playerSize),
+    numberSpot: oneOf<NumberSpot>(v.numberSpot, ['top', 'shirt', 'off'], d.numberSpot),
     ball: readyBall,
     areas: keptAreas,
     arrows,
@@ -337,6 +354,24 @@ function v7ToV8(data: Obj): Obj {
   return { ...data, version: 8, squad: [] };
 }
 
+/**
+ * Version 8 to 9: numbers show above the head in 3D, as before; arms and
+ * height start at their defaults. The volleyball lost its white: its body
+ * takes the old third panel's colour (yellow), the blue stays.
+ */
+function v8ToV9(data: Obj): Obj {
+  const boards = Array.isArray(data.boards)
+    ? data.boards.map((b: unknown) => {
+        if (!isObj(b)) return b;
+        const ball = isObj(b.ball) ? b.ball : null;
+        const colors = ball && ball.style === 'volleyball' && isObj(ball.colors) ? ball.colors : null;
+        const fixed = colors ? { ...ball, colors: { panel1: colors.panel3 ?? '#FFD23F', panel2: colors.panel2 } } : b.ball;
+        return { ...b, numberSpot: 'top', ball: fixed };
+      })
+    : data.boards;
+  return { ...data, version: 9, boards };
+}
+
 /** Upgrades older save files, one version at a time. */
 export function migrate(data: Obj, from: number): Obj {
   let out = data;
@@ -347,6 +382,7 @@ export function migrate(data: Obj, from: number): Obj {
   if (from < 6) out = v5ToV6(out);
   if (from < 7) out = v6ToV7(out);
   if (from < 8) out = v7ToV8(out);
+  if (from < 9) out = v8ToV9(out);
   return out;
 }
 
