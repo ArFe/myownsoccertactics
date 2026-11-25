@@ -109,6 +109,8 @@ export function applyPositions(board: Board, set: SavedPositions, targets: Posit
         role: s.role,
         x: tidy(at.x),
         y: tidy(at.y),
+        // The squad member stays in the spot unless the set's names replace theirs.
+        ...(!withNames && old?.memberId ? { memberId: old.memberId } : {}),
       };
     });
     board.players = [...board.players.filter((p) => p.team !== to), ...next];

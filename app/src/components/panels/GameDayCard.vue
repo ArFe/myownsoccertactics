@@ -6,6 +6,7 @@ import type { SubsShown, TeamSide } from '@/model/types';
 import { toColorInput } from '@/utils/color';
 import Icon from '../Icon.vue';
 import SubRow from './SubRow.vue';
+import MemberPicker from './MemberPicker.vue';
 
 const store = useSaveStore();
 const gd = computed(() => store.board.gameDay);
@@ -26,9 +27,9 @@ function val(e: Event): string {
 }
 
 /** A new sub goes in for the first player who has none yet. */
-function addSub(): void {
+function addSub(memberId: string): void {
   const free = onField.value.find((p) => !store.board.subs.some((s) => s.replaces === p.id)) ?? onField.value[0];
-  if (free) store.addSub(free.id);
+  if (free) store.addSub(free.id, memberId);
 }
 </script>
 
@@ -113,9 +114,7 @@ function addSub(): void {
     <div class="stack">
       <span class="field-label">Subs · {{ team.name }}</span>
       <SubRow v-for="s in subs" :key="s.id" :sub="s" :on-field="onField" :waves="waves" />
-      <button type="button" class="btn small" :disabled="onField.length === 0" @click="addSub">
-        <Icon name="plus" :size="14" />Add a sub
-      </button>
+      <MemberPicker v-if="onField.length" label="Add a sub" empty-label="Add a sub…" @pick="addSub" />
     </div>
   </section>
 </template>

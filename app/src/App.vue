@@ -7,6 +7,7 @@ import BoardSidebar from './components/BoardSidebar.vue';
 import BoardView from './components/BoardView.vue';
 import PropertiesPanel from './components/PropertiesPanel.vue';
 import SaveDialog from './components/SaveDialog.vue';
+import AddPlayersDialog from './components/AddPlayersDialog.vue';
 import ExportHost from './components/ExportHost.vue';
 import { useFieldZoom } from './composables/zoom';
 
@@ -100,6 +101,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
       <PropertiesPanel />
     </div>
     <SaveDialog ref="dialog" :open="saveOpen" @close="saveOpen = false" />
+    <AddPlayersDialog />
     <ExportHost />
     <div class="toasts" aria-live="polite">
       <div v-for="t in toasts" :key="t.id" class="toast" :class="t.kind" @click="dismiss(t.id)">{{ t.text }}</div>

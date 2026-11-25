@@ -7,6 +7,7 @@ import Icon from '../Icon.vue';
 import BallSettings from './BallSettings.vue';
 import StepVisibility from './StepVisibility.vue';
 import SubRow from './SubRow.vue';
+import MemberPicker from './MemberPicker.vue';
 import { subsFor, wavesByMinute } from '@/model/gameDay';
 
 const store = useSaveStore();
@@ -27,6 +28,16 @@ const subsShown = computed(() => {
 const playerSubs = computed(() => (player.value ? subsFor(store.board, player.value.id) : []));
 const teamOnField = computed(() => store.board.players.filter((p) => p.team === store.board.gameDay.team));
 const waves = computed(() => wavesByMinute(store.board));
+/** Our team's players come from the squad. */
+const ourPlayer = computed(() => !!player.value && player.value.team === store.board.gameDay.team);
+const numberError = ref<string | null>(null);
+
+function onPlayerNumber(e: Event): void {
+  const input = e.target as HTMLInputElement;
+  const n = Number(input.value);
+  numberError.value = store.updatePlayer(player.value!.id, { number: n });
+  if (numberError.value) input.value = String(player.value!.number);
+}
 /** Drawings can be shown on some steps of a play only. */
 const drawingId = computed(() => (area.value ?? arrow.value ?? note.value ?? cone.value)?.id ?? null);
 
@@ -70,16 +81,28 @@ defineExpose({ focusName });
     <!-- Player -->
     <template v-else-if="player">
       <h3 class="section-title">Player · {{ store.board.teams[player.team].name }}</h3>
+      <label v-if="ourPlayer" class="field-label">
+        Squad player
+        <MemberPicker
+          label="Squad player"
+          :current="player.memberId"
+          empty-label="Not in squad (number only)"
+          @pick="(m) => store.assignMemberTo('player', player!.id, m)"
+          @none="store.assignMemberTo('player', player!.id, null)"
+        />
+      </label>
       <div class="player-grid">
         <label class="field-label">
           Number
           <input
+            :key="`${player.id}-${player.number}`"
             class="input"
             type="number"
             min="0"
             max="999"
+            aria-label="Number"
             :value="player.number"
-            @input="(e) => { const n = numVal(e); if (n !== null && Number.isInteger(n)) store.updatePlayer(player!.id, { number: n }); }"
+            @change="onPlayerNumber"
           />
         </label>
         <label class="field-label">
@@ -93,13 +116,15 @@ defineExpose({ focusName });
           />
         </label>
       </div>
-      <p class="hint">Role: {{ player.role || '—' }}. Change the formation in the Teams tab.</p>
+      <p v-if="numberError" class="error" role="alert">{{ numberError }}</p>
+      <p class="hint">
+        Role: {{ player.role || '—' }}. Change the formation in the Teams tab.
+        <template v-if="player.memberId">Number and name changes go to the squad.</template>
+      </p>
       <div v-if="subsShown" class="stack" data-testid="player-subs">
         <span class="field-label">Subs for {{ player.number }}</span>
         <SubRow v-for="s in playerSubs" :key="s.id" :sub="s" :on-field="teamOnField" :waves="waves" />
-        <button type="button" class="btn small" @click="store.addSub(player!.id)">
-          <Icon name="plus" :size="14" />Add a sub
-        </button>
+        <MemberPicker label="Add a sub" empty-label="Add a sub…" @pick="(m) => store.addSub(player!.id, m)" />
       </div>
     </template>
 
@@ -274,6 +299,12 @@ defineExpose({ focusName });
   padding: 12px;
   border: 1px dashed var(--border-strong);
   border-radius: 10px;
+}
+.error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 500;
 }
 .player-grid {
   display: grid;

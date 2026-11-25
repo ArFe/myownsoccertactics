@@ -57,6 +57,16 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   name (its number if it has none). In game day, a selected player of
   our team lists its subs in the Selection panel; the row (`SubRow.vue`)
   is shared with the Game day card.
+- The squad lives in `model/squad.ts` and `save.squad` (save version 8):
+  our players, shared by every board, numbers unique. A field spot or a
+  sub links to a member with `memberId` and keeps a copy of the number
+  and name; `syncMember()` updates the copies on every board. No two
+  players of a team (field and bench) share a number: `changeBoard()`
+  runs `fixNumberClashes()`, and the store refuses a typed number that is
+  taken. Players are added in the "Add players" window
+  (`composables/addPlayers.ts`, stays open) or from a CSV
+  (`number,name,positions`, positions split by "/"). `MemberPicker.vue`
+  picks members for a spot or a sub.
 - All changes to a save go through the store (`stores/save.ts`), so undo and
   autosave see them.
 - Changing the save file shape: bump `SAVE_VERSION` and add a step to

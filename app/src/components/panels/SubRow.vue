@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { useSaveStore } from '@/stores/save';
 import type { Player, Sub, SubWave } from '@/model/types';
+import { memberLabel } from '@/model/squad';
 import Icon from '../Icon.vue';
+import MemberPicker from './MemberPicker.vue';
 
-/** One sub: number, name, who it comes on for, when, swap and delete. */
+/** One sub: who (from the squad), who they come on for, when, swap and delete. */
 const props = defineProps<{ sub: Sub; onField: Player[]; waves: SubWave[] }>();
 const store = useSaveStore();
 
@@ -15,18 +17,19 @@ function playerLabel(id: string): string {
   const p = props.onField.find((x) => x.id === id);
   return p ? `${p.number}${p.name ? ` ${p.name}` : ''}` : '';
 }
-
-function onNumber(e: Event): void {
-  const n = Number(val(e));
-  if (Number.isInteger(n)) store.updateSub(props.sub.id, { number: n });
-}
 </script>
 
 <template>
   <div class="sub" :data-testid="`sub-${sub.number}`">
     <span class="sub-dot" :style="{ borderColor: waves.find((w) => w.id === sub.waveId)?.color ?? 'var(--border-strong)' }" />
-    <input class="input num" type="number" min="0" max="999" aria-label="Sub number" :value="sub.number" @input="onNumber" />
-    <input class="input" aria-label="Sub name" placeholder="Name" :value="sub.name" @input="store.updateSub(sub.id, { name: val($event) })" />
+    <MemberPicker
+      class="who"
+      label="Sub player"
+      :current="sub.memberId"
+      :empty-label="`${memberLabel(sub)} (not in squad)`"
+      @pick="(m) => store.assignMemberTo('sub', sub.id, m)"
+      @none="store.assignMemberTo('sub', sub.id, null)"
+    />
     <div class="sub-plan">
       <select class="select" aria-label="Comes on for" :value="sub.replaces" @change="store.updateSub(sub.id, { replaces: val($event) })">
         <option v-for="p in onField" :key="p.id" :value="p.id">for {{ playerLabel(p.id) }}</option>
@@ -56,7 +59,7 @@ function onNumber(e: Event): void {
   display: grid;
   grid-template-columns: 10px 58px minmax(0, 1fr) 36px 36px;
   grid-template-areas:
-    'dot num name swap del'
+    'dot who who swap del'
     '. plan plan plan plan';
   gap: 4px 6px;
   align-items: center;
@@ -70,11 +73,8 @@ function onNumber(e: Event): void {
   border-radius: 50%;
   border: 3px solid;
 }
-.num {
-  grid-area: num;
-}
-[aria-label='Sub name'] {
-  grid-area: name;
+.who {
+  grid-area: who;
 }
 .swap {
   grid-area: swap;
