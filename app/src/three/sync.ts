@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sizeScale } from '@/model/balls';
 import { getSport } from '@/model/sports';
 import type { Board } from '@/model/types';
 import {
@@ -12,6 +13,7 @@ import {
   buildText,
   dispose,
   figureKey,
+  liftY,
   setFade,
   to3,
 } from './builders';
@@ -33,6 +35,10 @@ export class SceneSync {
   private players = new Map<string, Kept>();
   private ball: Kept | null = null;
   private hiddenPlayer: string | null = null;
+  private selectedPlayer: string | null = null;
+  /** A ring on the grass under the selected player; it stays down when they jump. */
+  private ring: THREE.Mesh;
+  private raycaster = new THREE.Raycaster();
 
   constructor() {
     this.scene.background = new THREE.Color('#9EC7E8');
@@ -44,12 +50,52 @@ export class SceneSync {
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.bias = -0.0005;
     this.scene.add(sun, sun.target);
+    this.ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.9, 1.25, 48),
+      new THREE.MeshBasicMaterial({ color: '#FACC15', transparent: true, opacity: 0.95, depthWrite: false }),
+    );
+    this.ring.name = 'selection-ring';
+    this.ring.rotation.x = -Math.PI / 2;
+    this.ring.visible = false;
+    this.scene.add(this.ring);
+  }
+
+  /** Marks one player as selected (a ring under them), or none. */
+  selectPlayer(id: string | null): void {
+    this.selectedPlayer = id;
+    this.placeRing();
+  }
+
+  /**
+   * The player under a point of the view, or null. `x` and `y` run from -1
+   * to 1 across the view, y up (three.js "normalised device coordinates").
+   */
+  pickPlayer(x: number, y: number, camera: THREE.Camera): string | null {
+    this.scene.updateMatrixWorld();
+    this.raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+    const figures = [...this.players.values()].map((k) => k.obj).filter((o) => o.visible);
+    for (const hit of this.raycaster.intersectObjects(figures, true)) {
+      let o: THREE.Object3D | null = hit.object;
+      while (o && o.name !== 'player') o = o.parent;
+      if (o?.userData.id) return o.userData.id as string;
+    }
+    return null;
+  }
+
+  private placeRing(): void {
+    const kept = this.selectedPlayer ? this.players.get(this.selectedPlayer) : undefined;
+    this.ring.visible = !!kept && kept.obj.visible;
+    if (kept) {
+      this.ring.position.set(kept.obj.position.x, 0.03, kept.obj.position.z);
+      this.ring.scale.setScalar(kept.obj.userData.scale ?? 1);
+    }
   }
 
   /** In the player's-eye view the player's own figure is not drawn. */
   hidePlayer(id: string | null): void {
     this.hiddenPlayer = id;
     for (const [pid, kept] of this.players) kept.obj.visible = pid !== id;
+    this.placeRing();
   }
 
   update(board: Board, fade: Record<string, number> = {}): void {
@@ -103,15 +149,16 @@ export class SceneSync {
       const team = board.teams[p.team];
       if (!team.visible) continue;
       shown.add(p.id);
-      const key = figureKey(p, team, board.playerSize);
+      const key = figureKey(p, team, board.playerSize, board.numberSpot);
       let kept = this.players.get(p.id);
       if (kept?.key !== key) {
         this.remove(kept ?? null);
-        kept = { obj: buildFigure(p, team, board.playerSize), key };
+        kept = { obj: buildFigure(p, team, board.playerSize, board.numberSpot), key };
         this.players.set(p.id, kept);
         this.scene.add(kept.obj);
       }
-      kept.obj.position.copy(to3(board, p.x, p.y));
+      kept.obj.position.copy(to3(board, p.x, p.y)).setY(liftY(p, board.playerSize));
+      kept.obj.userData.scale = sizeScale(board.playerSize);
       kept.obj.visible = p.id !== this.hiddenPlayer;
     }
     for (const [id, kept] of this.players) {
@@ -120,6 +167,8 @@ export class SceneSync {
         this.players.delete(id);
       }
     }
+
+    this.placeRing();
 
     // The ball.
     const bk = ballKey(board.ball);
@@ -133,7 +182,7 @@ export class SceneSync {
     setFade(this.ball.obj, fade.ball ?? 1);
   }
 
-  /** Where a player stands in the scene, or null. */
+  /** Where a player stands in the scene (y is how high they jump), or null. */
   playerPosition(id: string): THREE.Vector3 | null {
     return this.players.get(id)?.obj.position.clone() ?? null;
   }
@@ -151,6 +200,8 @@ export class SceneSync {
     this.remove(this.field);
     for (const k of [...this.drawings.values(), ...this.players.values()]) this.remove(k);
     this.remove(this.ball);
+    this.ring.geometry.dispose();
+    (this.ring.material as THREE.Material).dispose();
     this.drawings.clear();
     this.players.clear();
     this.field = null;

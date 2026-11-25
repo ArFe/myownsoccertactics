@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BALL_STYLES, sizeScale } from '@/model/balls';
 import type { FieldDrawing, Net } from '@/model/sports/types';
-import type { Area, Arrow, Ball, Board, Cone, Player, Team, TextNote } from '@/model/types';
+import type { Area, Arrow, Ball, Board, Cone, NumberSpot, Player, Team, TextNote } from '@/model/types';
 
 // World: x along the length, z across the width, y up, centre of the field
 // at the origin. 1 unit = 1 metre. Home attacks towards +x.
@@ -313,8 +313,61 @@ export function textSprite(
 
 const SKIN = '#C99A76';
 
-/** A simple figure in the team's colours, its number above the head. */
-export function buildFigure(player: Player, team: Team, size: Board['playerSize']): THREE.Group {
+/** Shoulder height of the figure, before scaling. */
+const SHOULDER = 1.42;
+const ARM_LENGTH = 0.6;
+/** How far each arm turns from hanging straight down, outwards. */
+const ARM_TILT = { down: 0.2, up: Math.PI - 0.25 };
+
+/**
+ * Print on a shirt: a flat plane with the text, `height` metres tall (before
+ * the figure is scaled). Plain coloured text, no background.
+ */
+function shirtPrint(lines: { text: string; size: number }[], color: string, height: number): THREE.Mesh {
+  const shown = lines.filter((l) => l.text);
+  const totalSize = shown.reduce((t, l) => t + l.size, 0) || 1;
+  const widest = Math.max(1, ...shown.map((l) => l.text.length * l.size * 0.62));
+  const width = Math.min(0.4, (height * widest) / totalSize);
+  const material = new THREE.MeshStandardMaterial({ transparent: true, depthWrite: false, roughness: 0.8 });
+  const px = 256;
+  const made = canvas2d(Math.ceil((px * width) / height), px);
+  if (made) {
+    const { canvas, ctx } = made;
+    const unit = px / totalSize;
+    let y = 0;
+    for (const l of shown) {
+      const fontPx = l.size * unit * 0.9;
+      ctx.font = `700 ${fontPx}px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = color;
+      // Squeeze long names into the shirt's width.
+      ctx.fillText(l.text, canvas.width / 2, y + (l.size * unit) / 2, canvas.width * 0.96);
+      y += l.size * unit;
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    material.map = texture;
+  } else {
+    material.color.set(color);
+    material.opacity = 0;
+  }
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+  return mesh;
+}
+
+/**
+ * A simple figure in the team's colours. The number shows above the head, on
+ * the shirt (chest and back, the name over the back number), or not at all.
+ * Height off the ground is set by the caller (`liftY`), so jumps move it
+ * without building it again.
+ */
+export function buildFigure(
+  player: Player,
+  team: Team,
+  size: Board['playerSize'],
+  numberSpot: NumberSpot = 'top',
+): THREE.Group {
   const g = new THREE.Group();
   g.name = 'player';
   g.userData.id = player.id;
@@ -323,11 +376,20 @@ export function buildFigure(player: Player, team: Team, size: Board['playerSize'
   const shorts = standard(team.numberColor);
   const skin = standard(SKIN);
 
-  const limb = (r1: number, r2: number, h: number, mat: THREE.Material, x: number, y: number, z: number): THREE.Mesh => {
+  const limb = (
+    r1: number,
+    r2: number,
+    h: number,
+    mat: THREE.Material,
+    x: number,
+    y: number,
+    z: number,
+    parent: THREE.Object3D = body,
+  ): THREE.Mesh => {
     const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 12), mat);
     m.position.set(x, y, z);
     m.castShadow = true;
-    body.add(m);
+    parent.add(m);
     return m;
   };
   limb(0.075, 0.06, 0.5, skin, 0, 0.25, -0.1); // lower legs
@@ -335,38 +397,90 @@ export function buildFigure(player: Player, team: Team, size: Board['playerSize'
   limb(0.11, 0.1, 0.32, shorts, 0, 0.66, -0.1); // shorts
   limb(0.11, 0.1, 0.32, shorts, 0, 0.66, 0.1);
   limb(0.24, 0.2, 0.6, shirt, 0, 1.1, 0); // torso
-  const armL = limb(0.06, 0.05, 0.6, shirt, 0, 1.12, -0.3);
-  const armR = limb(0.06, 0.05, 0.6, shirt, 0, 1.12, 0.3);
-  armL.rotation.x = -0.2;
-  armR.rotation.x = 0.2;
+
+  // Each arm hangs from a pivot at the shoulder, so it can swing up.
+  const tilt = ARM_TILT[player.arms === 'up' ? 'up' : 'down'];
+  for (const side of [-1, 1] as const) {
+    const pivot = new THREE.Group();
+    pivot.name = side < 0 ? 'armL' : 'armR';
+    pivot.position.set(0, SHOULDER, side * 0.3);
+    pivot.rotation.x = -side * tilt;
+    limb(0.06, 0.05, ARM_LENGTH, shirt, 0, -ARM_LENGTH / 2, 0, pivot);
+    body.add(pivot);
+  }
+
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), skin);
   head.position.set(0, 1.55, 0);
   head.castShadow = true;
   body.add(head);
+
+  const name = team.showNames ? player.name : '';
+  if (numberSpot === 'shirt') {
+    // The body faces +x: chest out front, back behind.
+    const chest = shirtPrint([{ text: String(player.number), size: 1 }], team.numberColor, 0.2);
+    chest.name = 'chestNumber';
+    chest.position.set(0.235, 1.2, 0);
+    chest.rotation.y = Math.PI / 2;
+    const back = shirtPrint(
+      [
+        { text: name, size: 0.3 },
+        { text: String(player.number), size: 1 },
+      ],
+      team.numberColor,
+      name ? 0.3 : 0.24,
+    );
+    back.name = 'backNumber';
+    back.position.set(-0.235, 1.15, 0);
+    back.rotation.y = -Math.PI / 2;
+    body.add(chest, back);
+  }
+
   body.scale.setScalar(FIGURE_SCALE * sizeScale(size));
   // Face the other goal.
   body.rotation.y = player.team === 'home' ? 0 : Math.PI;
   body.name = 'body';
   g.add(body);
 
-  const label = textSprite(
-    [
-      { text: String(player.number), size: 22, bold: true },
-      { text: team.showNames ? player.name : '', size: 14 },
-    ],
-    team.numberColor,
-    (team.showNames && player.name ? 2.6 : 1.6) * sizeScale(size),
-    { badge: { fill: team.shirtColor } },
-  );
-  label.position.y = 1.85 * FIGURE_SCALE * sizeScale(size);
-  label.name = 'label';
-  g.add(label);
+  // Above the head: the number in a badge (and the name), or just the name.
+  const lines =
+    numberSpot === 'top'
+      ? [
+          { text: String(player.number), size: 22, bold: true },
+          { text: name, size: 14 },
+        ]
+      : [{ text: name, size: 14 }];
+  if (lines.some((l) => l.text)) {
+    const label = textSprite(
+      lines,
+      numberSpot === 'top' ? team.numberColor : '#FFFFFF',
+      (numberSpot === 'top' ? (name ? 2.6 : 1.6) : 1.0) * sizeScale(size),
+      numberSpot === 'top' ? { badge: { fill: team.shirtColor } } : {},
+    );
+    label.position.y = 1.85 * FIGURE_SCALE * sizeScale(size);
+    label.name = 'label';
+    g.add(label);
+  }
   return g;
 }
 
-/** What a figure looks like; a change means it is built again. */
-export function figureKey(player: Player, team: Team, size: Board['playerSize']): string {
-  return [player.number, player.name, player.team, team.shirtColor, team.numberColor, team.showNames, size].join('|');
+/** What a figure looks like; a change means it is built again. Height is not in it: a jump just moves it. */
+export function figureKey(player: Player, team: Team, size: Board['playerSize'], numberSpot: NumberSpot = 'top'): string {
+  return [
+    player.number,
+    player.name,
+    player.team,
+    team.shirtColor,
+    team.numberColor,
+    team.showNames,
+    size,
+    numberSpot,
+    player.arms ?? 'down',
+  ].join('|');
+}
+
+/** How high a figure is drawn off the ground, in scene units: figures are bigger than life, so jumps are too. */
+export function liftY(player: Pick<Player, 'lift'>, size: Board['playerSize']): number {
+  return (player.lift ?? 0) * FIGURE_SCALE * sizeScale(size);
 }
 
 // ---------- ball ----------

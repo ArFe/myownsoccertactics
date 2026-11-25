@@ -1,6 +1,7 @@
 import { deepCopy, newId } from './factory';
 import { tidy } from './geometry';
-import type { Board, Play, PlayStep, Spot } from './types';
+import { poseOf, setPose, spotOf } from './pose';
+import type { Board, Play, PlayStep, PlayerSpot } from './types';
 
 /** Seconds a new step takes to move into. */
 export const STEP_SECONDS = 1.5;
@@ -25,7 +26,7 @@ export function captureStep(board: Board, hidden: string[] = [], duration = STEP
   return {
     id: newId('st'),
     duration,
-    players: Object.fromEntries(board.players.map((p) => [p.id, { x: tidy(p.x), y: tidy(p.y) }])),
+    players: Object.fromEntries(board.players.map((p) => [p.id, spotOf({ ...p, x: tidy(p.x), y: tidy(p.y) })])),
     ball: { x: tidy(board.ball.x), y: tidy(board.ball.y), visible: board.ball.visible },
     hidden: [...hidden],
   };
@@ -38,7 +39,13 @@ export function createPlay(board: Board, name: string): Play {
 /** A copy of the board as it looks on one step. */
 export function boardAtStep(board: Board, step: PlayStep): Board {
   const out = deepCopy(board);
-  for (const p of out.players) Object.assign(p, step.players[p.id] ?? {});
+  for (const p of out.players) {
+    const spot = step.players[p.id];
+    if (!spot) continue;
+    p.x = spot.x;
+    p.y = spot.y;
+    setPose(p, poseOf(spot));
+  }
   Object.assign(out.ball, step.ball);
   const hidden = new Set(step.hidden);
   out.areas = out.areas.filter((d) => !hidden.has(d.id));
@@ -112,10 +119,14 @@ export function frameAt(board: Board, play: Play, t: number): Frame {
 
   const out = deepCopy(board);
   for (const p of out.players) {
-    const pa: Spot = a.players[p.id] ?? p;
-    const pb: Spot = b.players[p.id] ?? p;
+    const pa: PlayerSpot = a.players[p.id] ?? p;
+    const pb: PlayerSpot = b.players[p.id] ?? p;
     p.x = mix(pa.x, pb.x, e);
     p.y = mix(pa.y, pb.y, e);
+    // Height moves smoothly; arms switch half way.
+    const qa = poseOf(pa);
+    const qb = poseOf(pb);
+    setPose(p, { lift: mix(qa.lift, qb.lift, e), arms: e < 0.5 ? qa.arms : qb.arms });
   }
 
   const fade: Record<string, number> = {};

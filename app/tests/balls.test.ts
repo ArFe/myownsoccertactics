@@ -25,9 +25,9 @@ describe.each(BALL_STYLE_IDS.map((id) => [id, BALL_STYLES[id]] as const))('ball 
 });
 
 describe('ball styles', () => {
-  it('has the four looks, with blue, yellow and white for volleyball', () => {
+  it('has the four looks, with yellow and blue (no white) for volleyball', () => {
     expect(BALL_STYLE_IDS).toEqual(['soccer', 'volleyball', 'basketball', 'football']);
-    expect(defaultBallColors('volleyball')).toEqual({ panel1: '#FFFFFF', panel2: '#1E5AA8', panel3: '#FFD23F' });
+    expect(defaultBallColors('volleyball')).toEqual({ panel1: '#FFD23F', panel2: '#1E5AA8' });
     expect(BALL_STYLES.football.shape).toBe('oval');
   });
 

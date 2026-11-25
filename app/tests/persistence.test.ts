@@ -131,7 +131,7 @@ describe('parseSave', () => {
     expect(b.ball.style).toBe('volleyball');
     expect(b.ball.size).toBe('xl');
     // Bad colours get the default; slots of other styles are dropped.
-    expect(b.ball.colors).toEqual({ panel1: '#FFFFFF', panel2: '#1E5AA8', panel3: '#FFD23F' });
+    expect(b.ball.colors).toEqual({ panel1: '#FFFFFF', panel2: '#1E5AA8' });
     save.boards[0].ball.style = 'rugby';
     expect(parseSave(JSON.stringify(save)).boards[0]!.ball.style).toBe('soccer');
   });

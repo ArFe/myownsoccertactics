@@ -9,6 +9,7 @@ import StepVisibility from './StepVisibility.vue';
 import SubRow from './SubRow.vue';
 import MemberPicker from './MemberPicker.vue';
 import { subsFor, wavesByMinute } from '@/model/gameDay';
+import { MAX_LIFT, poseOf } from '@/model/pose';
 
 const store = useSaveStore();
 const nameInput = ref<HTMLInputElement | null>(null);
@@ -28,6 +29,12 @@ const subsShown = computed(() => {
 const playerSubs = computed(() => (player.value ? subsFor(store.board, player.value.id) : []));
 const teamOnField = computed(() => store.board.players.filter((p) => p.team === store.board.gameDay.team));
 const waves = computed(() => wavesByMinute(store.board));
+/** Arms and height as the field shows them now: the open step's, or the board's. */
+const pose = computed(() => {
+  const id = player.value?.id;
+  const seen = id ? store.frame.players.find((p) => p.id === id) : undefined;
+  return seen ? poseOf(seen) : null;
+});
 /** Our team's players come from the squad. */
 const ourPlayer = computed(() => !!player.value && player.value.team === store.board.gameDay.team);
 const numberError = ref<string | null>(null);
@@ -121,6 +128,35 @@ defineExpose({ focusName });
         Role: {{ player.role || '—' }}. Change the formation in the Teams tab.
         <template v-if="player.memberId">Number and name changes go to the squad.</template>
       </p>
+      <div v-if="pose" class="stack" data-testid="player-pose">
+        <span class="field-label">Arms</span>
+        <div class="seg" role="group" aria-label="Arms">
+          <button
+            v-for="a in (['down', 'up'] as const)"
+            :key="a"
+            type="button"
+            :aria-pressed="pose.arms === a"
+            @click="store.setPlayerPose(player!.id, { arms: a })"
+          >
+            {{ a === 'down' ? 'Down' : 'Up' }}
+          </button>
+        </div>
+        <div class="row-between">
+          <label class="field-label" for="player-lift">Height off the ground</label>
+          <span class="value">{{ pose.lift.toFixed(1) }} m</span>
+        </div>
+        <input
+          id="player-lift"
+          class="range"
+          type="range"
+          min="0"
+          :max="MAX_LIFT"
+          step="0.1"
+          :value="pose.lift"
+          @input="store.setPlayerPose(player!.id, { lift: Number(val($event)) })"
+        />
+        <p class="hint">Arms and height show in 3D.<template v-if="store.openStep"> They are saved on this step.</template></p>
+      </div>
       <div v-if="subsShown" class="stack" data-testid="player-subs">
         <span class="field-label">Subs for {{ player.number }}</span>
         <SubRow v-for="s in playerSubs" :key="s.id" :sub="s" :on-field="teamOnField" :waves="waves" />

@@ -2,7 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { Board } from '@/model/types';
+import type { Board, NumberSpot } from '@/model/types';
+import { useSaveStore } from '@/stores/save';
 import { SceneSync } from '@/three/sync';
 import { EYE_HEIGHT, FIGURE_SCALE } from '@/three/builders';
 import { EYE_FOV, lookAt, lookTarget, orbitStart, turn, zoomFov, type Look } from '@/three/cameras';
@@ -14,6 +15,13 @@ const props = defineProps<{
   width: number;
   maxHeight: number;
 }>();
+
+const store = useSaveStore();
+const NUMBER_SPOTS: { id: NumberSpot; label: string }[] = [
+  { id: 'top', label: 'Numbers above head' },
+  { id: 'shirt', label: 'Numbers on shirt' },
+  { id: 'off', label: 'No numbers' },
+];
 
 const host = ref<HTMLDivElement | null>(null);
 const failed = ref(false);
@@ -51,7 +59,8 @@ function requestRender(): void {
 function eyePosition(): THREE.Vector3 | null {
   const at = sync.playerPosition(eyePlayerId.value);
   if (!at) return null;
-  return at.setY(EYE_HEIGHT * FIGURE_SCALE * sizeScale(props.board.playerSize));
+  // The eye rises with a jump.
+  return at.setY(at.y + EYE_HEIGHT * FIGURE_SCALE * sizeScale(props.board.playerSize));
 }
 
 function placeEye(): void {
@@ -106,9 +115,23 @@ function pickPlayer(id: string): void {
   requestRender();
 }
 
+// A click (no drag) picks a player, as in 2D; a click on nothing clears the selection.
+const CLICK_SLOP = 5;
+let pressAt: { x: number; y: number } | null = null;
+function pick(e: PointerEvent): void {
+  if (!renderer || !camera) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return;
+  const x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  const y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  const id = sync.pickPlayer(x, y, camera);
+  store.select(id ? { kind: 'player', id } : null);
+}
+
 // Free look: drag to turn the head.
 let dragFrom: { x: number; y: number } | null = null;
 function onPointerDown(e: PointerEvent): void {
+  pressAt = e.button === 0 ? { x: e.clientX, y: e.clientY } : null;
   if (mode.value !== 'eye') return;
   dragFrom = { x: e.clientX, y: e.clientY };
   (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -119,8 +142,11 @@ function onPointerMove(e: PointerEvent): void {
   dragFrom = { x: e.clientX, y: e.clientY };
   requestRender();
 }
-function onPointerUp(): void {
+function onPointerUp(e: PointerEvent): void {
   dragFrom = null;
+  const from = pressAt;
+  pressAt = null;
+  if (e.type === 'pointerup' && from && Math.hypot(e.clientX - from.x, e.clientY - from.y) < CLICK_SLOP) pick(e);
 }
 
 // Zoom in the eye view: the wheel or the buttons narrow the view.
@@ -178,6 +204,14 @@ watch(
   },
   { deep: true },
 );
+watch(
+  () => (store.selection?.kind === 'player' ? store.selection.id : null),
+  (id) => {
+    sync.selectPlayer(id);
+    requestRender();
+  },
+  { immediate: true },
+);
 watch(() => [props.width, height.value], resize);
 watch(
   () => [props.board.field.length, props.board.field.width, props.board.field.orientation],
@@ -230,8 +264,20 @@ onBeforeUnmount(() => {
         </button>
       </template>
       <button v-else type="button" class="btn small" @click="resetOrbit">Reset view</button>
+      <select
+        class="select"
+        aria-label="Numbers in 3D"
+        :value="board.numberSpot"
+        @change="store.setNumberSpot(($event.target as HTMLSelectElement).value as NumberSpot)"
+      >
+        <option v-for="n in NUMBER_SPOTS" :key="n.id" :value="n.id">{{ n.label }}</option>
+      </select>
       <span class="hint">
-        {{ mode === 'orbit' ? 'Drag to turn · scroll to zoom · right-drag to move' : 'Drag to look around · scroll to zoom' }}
+        {{
+          mode === 'orbit'
+            ? 'Click a player to edit · drag to turn · scroll to zoom · right-drag to move'
+            : 'Click a player to edit · drag to look around · scroll to zoom'
+        }}
       </span>
     </div>
     <p v-if="failed" class="hint failed">The 3D view needs WebGL, which this browser has turned off.</p>

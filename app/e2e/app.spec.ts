@@ -2,6 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { makeView, toScreen } from '../src/model/view';
 import { getSport } from '../src/model/sports';
+import * as THREE from 'three';
+import { orbitStart } from '../src/three/cameras';
 import type { Board, SaveFile } from '../src/model/types';
 
 // ---------- helpers ----------
@@ -413,6 +415,34 @@ test('shows the board in 3D, with an orbit and a player’s-eye camera, and play
   const box = (await canvas.boundingBox())!;
   await drag(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, { x: box.x + box.width / 2 + 120, y: box.y + box.height / 2 });
   await view.getByRole('button', { name: 'Reset view' }).click();
+
+  // Numbers move onto the shirts, for every player.
+  await view.getByLabel('Numbers in 3D').selectOption({ label: 'Numbers on shirt' });
+  expect((await state(page)).board.numberSpot).toBe('shirt');
+
+  // Click a player's figure: it is selected, and the arms go up from the panel.
+  {
+    // Aim where the 3D view draws them: the open step's place, not the board's.
+    const board: Board = await page.evaluate(() => JSON.parse(JSON.stringify((window as any).__tactics.store.frame)));
+    const target = board.players.find((q) => q.team === 'home' && q.role === 'CM')!;
+    const camera = new THREE.PerspectiveCamera(45, box.width / box.height, 0.1, 1000);
+    const start = orbitStart(board.field);
+    camera.position.set(start.x, start.y, start.z);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    // Mid-chest of a medium figure (1.5x life size).
+    const at = new THREE.Vector3(target.x - board.field.length / 2, 1.1 * 1.5, target.y - board.field.width / 2).project(camera);
+    await page.mouse.click(box.x + ((at.x + 1) / 2) * box.width, box.y + ((1 - at.y) / 2) * box.height);
+    const panel = page.locator('#panel-selection');
+    await expect(panel.getByTestId('player-pose')).toBeVisible();
+    await panel.getByRole('group', { name: 'Arms' }).getByRole('button', { name: 'Up' }).click();
+    // Step 2 is open, so the arms go up on that step; the board keeps them down.
+    const arms = await page.evaluate((id) => {
+      const st = (window as any).__tactics.store;
+      return [st.frame.players.find((q: any) => q.id === id).arms, st.board.players.find((q: any) => q.id === id).arms];
+    }, target.id);
+    expect(arms).toEqual(['up', undefined]);
+  }
 
   // Player's eye: pick a player and look around.
   await view.getByRole('button', { name: "Player's eye" }).click();
