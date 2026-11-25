@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { useSaveStore, type Tool } from '@/stores/save';
 import { presetLabel } from '@/model/field';
-import { SPORTS, SPORT_IDS, getSport } from '@/model/sports';
+import { SPORTS, SPORT_IDS } from '@/model/sports';
+import type { SportId } from '@/model/types';
 import Icon from './Icon.vue';
 
 const store = useSaveStore();
@@ -34,26 +35,23 @@ const HINTS: Partial<Record<Tool, string>> = {
       <div class="head">
         <h2 class="section-title">Sport</h2>
       </div>
-      <div class="seg" role="group" aria-label="Sport">
-        <button
-          v-for="id in SPORT_IDS"
-          :key="id"
-          type="button"
-          :aria-pressed="store.board.sport === id"
-          @click="store.openSport(id)"
-        >
-          {{ SPORTS[id].name }}
-        </button>
-      </div>
+      <select
+        class="select"
+        aria-label="Sport"
+        :value="store.board.sport"
+        @change="store.openSport(($event.target as HTMLSelectElement).value as SportId)"
+      >
+        <option v-for="id in SPORT_IDS" :key="id" :value="id">{{ SPORTS[id].name }}</option>
+      </select>
     </section>
 
     <section class="stack">
       <div class="head">
-        <h2 class="section-title">Boards in this save</h2>
-        <span class="count">{{ store.save.boards.length }}</span>
+        <h2 class="section-title">{{ store.sport.name }} boards</h2>
+        <span class="count">{{ store.sportBoards.length }}</span>
       </div>
       <ul class="boards">
-        <li v-for="b in store.save.boards" :key="b.id">
+        <li v-for="b in store.sportBoards" :key="b.id">
           <button
             type="button"
             class="board"
@@ -62,7 +60,7 @@ const HINTS: Partial<Record<Tool, string>> = {
             @click="store.setActiveBoard(b.id)"
           >
             <span class="board-name">{{ b.name || 'Untitled board' }}</span>
-            <span class="tag">{{ presetLabel(getSport(b.sport), b.field.preset) }}</span>
+            <span class="tag">{{ presetLabel(store.sport, b.field.preset) }}</span>
           </button>
         </li>
       </ul>

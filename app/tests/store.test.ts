@@ -42,6 +42,34 @@ describe('save store', () => {
     expect(s.save.boards).toHaveLength(1);
   });
 
+  it('keeps boards per sport: names, lists, deleting and moving stay in the sport', () => {
+    const s = freshStore();
+    const soccer1 = s.board.id;
+    s.addBoard('7v7');
+    const soccer2 = s.board.id;
+    s.openSport('volleyball');
+    const volley1 = s.board.id;
+    expect(s.board.name).toBe('Board 1');
+    expect(s.sportBoards.map((b) => b.id)).toEqual([volley1]);
+    s.addBoard('2v2');
+    expect(s.board.name).toBe('Board 2');
+    const volley2 = s.board.id;
+    // The last board of a sport cannot go; deleting the open one opens another of the same sport.
+    expect(s.deleteBoard(volley1)).toBe(true);
+    expect(s.deleteBoard(volley2)).toBe(false);
+    s.openSport('soccer');
+    expect(s.sportBoards.map((b) => b.id)).toEqual([soccer1, soccer2]);
+    // Moving skips boards of other sports.
+    s.addBoard('11v11');
+    const soccer3 = s.board.id;
+    s.moveBoard(soccer3, -1);
+    expect(s.sportBoards.map((b) => b.id)).toEqual([soccer1, soccer3, soccer2]);
+    s.setActiveBoard(soccer1);
+    expect(s.deleteBoard(soccer1)).toBe(true);
+    expect(s.board.id).toBe(soccer3);
+    expect(s.board.sport).toBe('soccer');
+  });
+
   it('changes formation and keeps the names', () => {
     const s = freshStore();
     const gk = home(s)[0]!;

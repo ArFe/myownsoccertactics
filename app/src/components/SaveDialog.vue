@@ -27,7 +27,7 @@ watch(
   () => props.open,
   (open) => {
     if (open) {
-      included.value = new Set(store.save.boards.map((b) => b.id));
+      included.value = new Set(store.sportBoards.map((b) => b.id));
       uploadError.value = null;
       if (!dialog.value?.open) dialog.value?.showModal();
     } else if (dialog.value?.open) {
@@ -38,7 +38,7 @@ watch(
 
 // Keep the ticks in step when boards are added or removed while open.
 watch(
-  () => store.save.boards.map((b) => b.id),
+  () => store.sportBoards.map((b) => b.id),
   (ids, old) => {
     const next = new Set([...included.value].filter((id) => ids.includes(id)));
     ids.filter((id) => !old?.includes(id)).forEach((id) => next.add(id));
@@ -47,7 +47,7 @@ watch(
 );
 
 const { pngTitle } = useExportPrefs();
-const chosen = computed(() => store.save.boards.filter((b) => included.value.has(b.id)));
+const chosen = computed(() => store.sportBoards.filter((b) => included.value.has(b.id)));
 
 function toggle(id: string, on: boolean): void {
   const next = new Set(included.value);
@@ -91,8 +91,8 @@ async function downloadZip(): Promise<void> {
 }
 
 function removeBoard(id: string, name: string): void {
-  if (store.save.boards.length <= 1) {
-    show('A save needs at least one board.', 'error');
+  if (store.sportBoards.length <= 1) {
+    show(`Each sport keeps at least one board.`, 'error');
     return;
   }
   if (window.confirm(`Delete the board "${name}"? You can undo this.`)) store.deleteBoard(id);
@@ -152,7 +152,7 @@ defineExpose({ pickFile: () => fileInput.value?.click() });
       </div>
 
       <section class="stack">
-        <h3 class="section-title">Boards in this save</h3>
+        <h3 class="section-title">{{ store.sport.name }} boards in this save</h3>
         <div class="table" role="table" aria-label="Boards">
           <div class="row header" role="row">
             <span role="columnheader"><span class="sr-only">Include</span></span>
@@ -162,7 +162,7 @@ defineExpose({ pickFile: () => fileInput.value?.click() });
             <span role="columnheader">Changed</span>
             <span role="columnheader"><span class="sr-only">Actions</span></span>
           </div>
-          <div v-for="(b, i) in store.save.boards" :key="b.id" class="row" role="row">
+          <div v-for="(b, i) in store.sportBoards" :key="b.id" class="row" role="row">
             <span role="cell">
               <input
                 type="checkbox"
@@ -180,7 +180,7 @@ defineExpose({ pickFile: () => fileInput.value?.click() });
             <span role="cell" class="muted">{{ changedLabel(b.updatedAt) }}</span>
             <span role="cell" class="row-actions">
               <button type="button" class="icon-btn" :aria-label="`Move ${b.name} up`" :disabled="i === 0" @click="store.moveBoard(b.id, -1)"><Icon name="up" :size="16" /></button>
-              <button type="button" class="icon-btn" :aria-label="`Move ${b.name} down`" :disabled="i === store.save.boards.length - 1" @click="store.moveBoard(b.id, 1)"><Icon name="down" :size="16" /></button>
+              <button type="button" class="icon-btn" :aria-label="`Move ${b.name} down`" :disabled="i === store.sportBoards.length - 1" @click="store.moveBoard(b.id, 1)"><Icon name="down" :size="16" /></button>
               <button type="button" class="icon-btn" :aria-label="`Duplicate ${b.name}`" @click="store.duplicateBoard(b.id)"><Icon name="copy" :size="16" /></button>
               <button type="button" class="icon-btn danger" :aria-label="`Delete ${b.name}`" @click="removeBoard(b.id, b.name)"><Icon name="trash" :size="16" /></button>
             </span>

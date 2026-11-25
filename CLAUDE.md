@@ -16,16 +16,20 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   sport (`model/route.ts`, `openSport()` in the store). `/` and unknown
   addresses land on the default sport and show `/soccer`. On the site, a
   CloudFront function serves `index.html` for any path with no file
-  extension (`infra/envs/prod/main.tf`). The sport switch in the sidebar
-  calls `openSport()`; `main.ts` keeps the address on the open board's
-  sport (pushState) and Back switches sport again (popstate).
+  extension (`infra/envs/prod/main.tf`). The sport drop-down in the
+  sidebar calls `openSport()`; `main.ts` keeps the address on the open
+  board's sport (pushState) and Back switches sport again (popstate).
+- Boards are per sport: one save holds them all, but the sidebar and the
+  save dialog list only `store.sportBoards` (the open sport's). Each sport
+  keeps at least one board, new ones are numbered within the sport, and
+  moving a board skips boards of other sports.
 - Ball looks live in `model/balls.ts`: shapes drawn in units of the ball's
   radius, with named colour slots; `tests/balls.test.ts` checks each style.
 - Adding a sport: write `model/sports/<sport>/`, add its id to `SportId` in
   `model/types.ts` and to `SPORTS` in `model/sports/index.ts`.
   `tests/sports.test.ts` then checks it (presets in limits, formations
-  exist and match team sizes, lines inside the run-off). The sport switch
-  in the sidebar lists it by itself. Still to build then: units shown
+  exist and match team sizes, lines inside the run-off). The sport
+  drop-down in the sidebar lists it by itself. Still to build then: units shown
   (yards for American football), and sport-only objects like a hoop.
 - Plays live in `model/plays.ts`. A step stores places by player id, the
   ball, and the ids of drawings it hides. The field always draws

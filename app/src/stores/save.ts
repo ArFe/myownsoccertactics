@@ -107,6 +107,8 @@ export const useSaveStore = defineStore('save', () => {
   );
   /** The rules of the open board's sport. */
   const sport = computed<SportDefinition>(() => getSport(board.value.sport));
+  /** Boards of the open board's sport, in save order. Each sport has its own list. */
+  const sportBoards = computed<Board[]>(() => save.value.boards.filter((b) => b.sport === board.value.sport));
 
   // ----- the open play (view state, not saved and not undone) -----
   const openPlayId = ref<string | null>(null);
@@ -228,7 +230,7 @@ export const useSaveStore = defineStore('save', () => {
       setActiveBoard(existing.id);
       return;
     }
-    const b = createBoard(id, undefined, `Board ${save.value.boards.length + 1}`);
+    const b = createBoard(id, undefined, 'Board 1');
     save.value.boards.push(b);
     save.value.activeBoardId = b.id;
     selection.value = null;
@@ -245,7 +247,7 @@ export const useSaveStore = defineStore('save', () => {
 
   /** Adds a board of the open board's sport, with the given preset. */
   function addBoard(presetId: string): string {
-    const b = createBoard(board.value.sport, presetId, `Board ${save.value.boards.length + 1}`);
+    const b = createBoard(board.value.sport, presetId, `Board ${sportBoards.value.length + 1}`);
     save.value.boards.push(b);
     save.value.activeBoardId = b.id;
     selection.value = null;
@@ -264,25 +266,31 @@ export const useSaveStore = defineStore('save', () => {
     return copy.id;
   }
 
-  /** A save always keeps at least one board. Returns false if refused. */
+  /** Each sport keeps at least one board. Returns false if refused. */
   function deleteBoard(id: string): boolean {
-    if (save.value.boards.length <= 1) return false;
-    const i = save.value.boards.findIndex((b) => b.id === id);
-    if (i < 0) return false;
-    save.value.boards.splice(i, 1);
+    const gone = save.value.boards.find((b) => b.id === id);
+    if (!gone) return false;
+    const same = save.value.boards.filter((b) => b.sport === gone.sport);
+    if (same.length <= 1) return false;
+    const i = same.indexOf(gone);
+    save.value.boards.splice(save.value.boards.indexOf(gone), 1);
     if (save.value.activeBoardId === id) {
-      save.value.activeBoardId = save.value.boards[Math.max(0, i - 1)]!.id;
+      // The board before it in the same sport, so the sport stays open.
+      save.value.activeBoardId = same[i === 0 ? 1 : i - 1]!.id;
       selection.value = null;
     }
     commit();
     return true;
   }
 
+  /** Swaps a board with its neighbour of the same sport. */
   function moveBoard(id: string, delta: -1 | 1): void {
     const list = save.value.boards;
     const i = list.findIndex((b) => b.id === id);
-    const j = i + delta;
-    if (i < 0 || j < 0 || j >= list.length) return;
+    if (i < 0) return;
+    let j = i + delta;
+    while (j >= 0 && j < list.length && list[j]!.sport !== list[i]!.sport) j += delta;
+    if (j < 0 || j >= list.length) return;
     [list[i], list[j]] = [list[j]!, list[i]!];
     commit();
   }
@@ -954,6 +962,7 @@ export const useSaveStore = defineStore('save', () => {
     renameSave,
     setActiveBoard,
     openSport,
+    sportBoards,
     addBoard,
     duplicateBoard,
     deleteBoard,
