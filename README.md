@@ -6,8 +6,8 @@ A web app to draw and explain soccer tactics. It runs fully in the browser.
 - Default formations for both sizes. Every colour and name can be changed.
 - Volleyball: indoor 6v6 (18 × 9 m, 5-1, 4-2 or 6-2) or beach 2v2
   (16 × 8 m), with the net across the middle in 2D and 3D.
-- Switch sport at the top of the sidebar. Each sport has its own address
-  (`/soccer`, `/volleyball`); one save holds boards of every sport.
+- Pick the sport from the drop-down at the top of the sidebar. Each sport
+  has its own address (`/soccer`, `/volleyball`) and its own boards.
 - Mark areas on the field (rectangle, ellipse, polygon), with a name, colour
   and transparency.
 - Arrows for passes and runs, text notes, cones and the ball.

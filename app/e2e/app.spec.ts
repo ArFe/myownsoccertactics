@@ -640,30 +640,34 @@ test('/volleyball lands on an indoor volleyball court, with a net and six a side
   expect(new URL(page.url()).pathname).toBe('/volleyball');
 });
 
-test('the sport switch opens a board of that sport, and the address and Back follow', async ({ page }) => {
-  const sport = page.getByRole('group', { name: 'Sport' });
+test('the sport drop-down opens that sport with its own boards, and the address and Back follow', async ({ page }) => {
+  const sport = page.getByRole('combobox', { name: 'Sport' });
+  const boards = page.getByRole('navigation', { name: 'Boards and tools' }).locator('.boards li');
   const soccerBoard = (await state(page)).board.id;
+  await expect(sport).toHaveValue('soccer');
 
-  await sport.getByRole('button', { name: 'Volleyball' }).click();
+  await sport.selectOption({ label: 'Volleyball' });
   await expect(page.getByText('Indoor 6v6 · 18 × 9 m')).toBeVisible();
-  await expect(sport.getByRole('button', { name: 'Volleyball' })).toHaveAttribute('aria-pressed', 'true');
   let { save, board } = await state(page);
   expect(board.sport).toBe('volleyball');
+  expect(board.name).toBe('Board 1');
   expect(save.boards).toHaveLength(2);
   expect(new URL(page.url()).pathname).toBe('/volleyball');
+  // Only the volleyball board is listed.
+  await expect(boards).toHaveCount(1);
+  await expect(boards.first()).toContainText('Indoor 6v6');
 
-  // Back to soccer opens the soccer board there was, not a new one.
-  await sport.getByRole('button', { name: 'Soccer' }).click();
+  // Back to soccer opens the soccer board there was, not a new one, and lists only soccer.
+  await sport.selectOption({ label: 'Soccer' });
   ({ save, board } = await state(page));
   expect(board.id).toBe(soccerBoard);
   expect(save.boards).toHaveLength(2);
   expect(new URL(page.url()).pathname).toBe('/soccer');
-
-  // Picking the volleyball board in the list moves the address too.
-  await page.getByRole('button', { name: /Indoor 6v6/ }).click();
-  expect(new URL(page.url()).pathname).toBe('/volleyball');
+  await expect(boards).toHaveCount(1);
+  await expect(boards.first()).toContainText('11v11');
 
   await page.goBack();
-  await expect.poll(async () => (await state(page)).board.sport).toBe('soccer');
-  expect(new URL(page.url()).pathname).toBe('/soccer');
+  await expect.poll(async () => (await state(page)).board.sport).toBe('volleyball');
+  expect(new URL(page.url()).pathname).toBe('/volleyball');
+  await expect(sport).toHaveValue('volleyball');
 });
