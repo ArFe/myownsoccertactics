@@ -55,7 +55,24 @@ const gameDay = computed(() => props.board.gameDay);
 // The "Show subs" switch works with game day on or off; "none" hides subs.
 const benchShown = computed(() => gameDay.value.subsShown === 'bench' || gameDay.value.subsShown === 'both');
 const besideShown = computed(() => gameDay.value.subsShown === 'beside' || gameDay.value.subsShown === 'both');
-const benchHeight = computed(() => (benchShown.value ? Math.round(Math.min(130, Math.max(64, props.width * 0.085))) : 0));
+/** Height of one row of bench chips. */
+const benchRowH = computed(() => Math.round(Math.min(130, Math.max(64, props.width * 0.085))));
+/** Side space of the bench: the "BENCH" label, the time legend and the gaps. */
+const benchSides = computed(() => {
+  const H = benchRowH.value;
+  return H * 1.0 + wavesByMinute(props.board).length * H * 0.95 + H * 0.16 * 3;
+});
+/** Chips per row: as many as fit at a width that leaves room for a name. */
+const benchPerRow = computed(() => {
+  const n = teamSubs(props.board, gameDay.value.team).length;
+  const fit = Math.max(1, Math.floor((props.width - benchSides.value) / (benchRowH.value * 1.9)));
+  const rows = Math.max(1, Math.ceil(n / fit));
+  return Math.max(1, Math.ceil(n / rows));
+});
+const benchRows = computed(() =>
+  Math.max(1, Math.ceil(teamSubs(props.board, gameDay.value.team).length / benchPerRow.value)),
+);
+const benchHeight = computed(() => (benchShown.value ? benchRowH.value * benchRows.value : 0));
 const view = computed(() =>
   makeView(props.board.field, sport.value.runoff(props.board.field), props.width, props.maxHeight - benchHeight.value),
 );
@@ -387,8 +404,9 @@ const bench = computed(() => {
   const b = props.board;
   const team = b.teams[gameDay.value.team];
   const W = view.value.stageWidth;
-  const H = benchHeight.value;
+  const H = benchRowH.value;
   const top = view.value.stageHeight;
+  const middle = top + benchHeight.value / 2;
   const pad = H * 0.16;
   const font = (n: number) => Math.max(9, H * n);
   const text = (t: string, x: number, y: number, size: number, fill: string, extra: Record<string, unknown> = {}) => ({
@@ -401,16 +419,18 @@ const bench = computed(() => {
   const labelW = H * 1.0;
   const subs = teamSubs(b, gameDay.value.team);
   const room = W - labelW - legendW - pad * 3;
-  const chipW = subs.length ? Math.min(H * 2.1, room / subs.length) : 0;
+  // Long benches wrap onto more rows (benchPerRow), so names keep their room.
+  const perRow = benchPerRow.value;
+  const chipW = subs.length ? Math.min(H * 2.1, room / perRow) : 0;
   const r = H * 0.2;
 
   return {
-    background: { x: 0, y: top, width: W, height: H, fill: '#14301F', listening: false },
-    label: text('BENCH', pad, top + H / 2 - font(0.13) / 2, 0.13, '#A7C4B2', { letterSpacing: 1 }),
-    empty: subs.length ? null : text('No subs yet: add them in Game day', labelW + pad, top + H / 2 - font(0.15) / 2, 0.15, '#A7C4B2', { fontStyle: 'normal' }),
+    background: { x: 0, y: top, width: W, height: benchHeight.value, fill: '#14301F', listening: false },
+    label: text('BENCH', pad, middle - font(0.13) / 2, 0.13, '#A7C4B2', { letterSpacing: 1 }),
+    empty: subs.length ? null : text('No subs yet: add them in Game day', labelW + pad, middle - font(0.15) / 2, 0.15, '#A7C4B2', { fontStyle: 'normal' }),
     chips: subs.map((sub, i) => {
-      const x = labelW + pad + i * chipW;
-      const cy = top + H / 2;
+      const x = labelW + pad + (i % perRow) * chipW;
+      const cy = top + H / 2 + Math.floor(i / perRow) * H;
       const wave = waveOf(b, sub);
       const off = b.players.find((p) => p.id === sub.replaces);
       return {
@@ -427,7 +447,7 @@ const bench = computed(() => {
     }),
     legend: waves.map((w, i) => {
       const x = W - legendW - pad + i * legendItem;
-      const cy = top + H / 2;
+      const cy = middle;
       return {
         id: w.id,
         dot: { x: x + H * 0.12, y: cy, radius: H * 0.11, fill: w.color, listening: false },
