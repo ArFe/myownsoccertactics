@@ -13,6 +13,10 @@ import { MAX_LIFT, poseOf } from '@/model/pose';
 
 const store = useSaveStore();
 const nameInput = ref<HTMLInputElement | null>(null);
+/** True while a first name is typed for a squad player (see `nameFixed`). */
+const naming = ref(false);
+/** A squad player who has a name is renamed in the Squad tab only. */
+const nameFixed = computed(() => !!player.value?.memberId && !!player.value.name && !naming.value);
 
 const item = computed(() => store.findSelected());
 const kind = computed(() => (item.value ? store.selection?.kind : undefined));
@@ -117,6 +121,10 @@ defineExpose({ focusName });
             class="input"
             :value="player.name"
             placeholder="Name"
+            :readonly="nameFixed"
+            :title="nameFixed ? 'Change the name in the Squad tab' : undefined"
+            @focus="naming = !!player!.memberId && !player!.name"
+            @blur="naming = false"
             @input="store.updatePlayer(player!.id, { name: val($event) })"
           />
         </label>
@@ -124,7 +132,10 @@ defineExpose({ focusName });
       <p v-if="numberError" class="error" role="alert">{{ numberError }}</p>
       <p class="hint">
         Role: {{ player.role || '—' }}. Change the formation in the Teams tab.
-        <template v-if="player.memberId">A name goes to the squad; another number puts that squad player here.</template>
+        <template v-if="player.memberId">
+          Another number puts that squad player here.
+          {{ player.name ? 'Change the name in the Squad tab.' : 'A name typed here goes to the squad.' }}
+        </template>
       </p>
       <div v-if="pose" class="stack" data-testid="player-pose">
         <span class="field-label">Arms</span>
@@ -326,6 +337,11 @@ defineExpose({ focusName });
 </template>
 
 <style scoped>
+.input[readonly] {
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+}
 .selection {
   gap: 14px;
 }

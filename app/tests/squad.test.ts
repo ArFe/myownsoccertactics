@@ -312,6 +312,18 @@ describe('squad in the store', () => {
     expect(s.sportSquad.every((m) => m.name === '')).toBe(true);
   });
 
+  it('a new sub never takes over a nameless player on the field', () => {
+    const s = useSaveStore();
+    expect(s.nextSquadNumber).toBe(1);
+    // Everyone in the squad counts, nameless players too.
+    expect(s.nextUnusedNumber).toBe(12);
+    expect(s.addMember({ number: 1, name: 'Ana' }, { fillBlank: false })).toEqual({ error: 'Number 1 is taken.' });
+    expect(homeAt(s, 1).name).toBe('');
+    const r = s.addMember({ number: 12, name: 'Ana' }, { fillBlank: false });
+    expect(r).toHaveProperty('id');
+    expect(s.nextUnusedNumber).toBe(13);
+  });
+
   it('each sport has its own squad', () => {
     const s = useSaveStore();
     s.addMember({ number: 1, name: 'Keeper' });

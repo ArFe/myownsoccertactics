@@ -5,12 +5,25 @@ import { formationGroups, getFormation } from '@/model/formations';
 import PositionsCard from './PositionsCard.vue';
 import SizesCard from './SizesCard.vue';
 import GameDayCard from './GameDayCard.vue';
+import MemberPicker from './MemberPicker.vue';
 import type { TeamSide } from '@/model/types';
 import { toColorInput } from '@/utils/color';
 
 const store = useSaveStore();
 const open = ref<Record<TeamSide, boolean>>({ home: true, away: false });
+/**
+ * Our players whose first name is being typed. A squad player's name is
+ * typed here only while they have none; after that it changes in the Squad
+ * tab. The box stays open until it loses focus, so typing is not cut short.
+ */
+const naming = ref(new Set<string>());
 
+function setNaming(id: string, on: boolean): void {
+  const next = new Set(naming.value);
+  if (on) next.add(id);
+  else next.delete(id);
+  naming.value = next;
+}
 const SIDES: { side: TeamSide; label: string }[] = [
   { side: 'home', label: 'Home' },
   { side: 'away', label: 'Away' },
@@ -128,7 +141,36 @@ function onNumber(id: string, e: Event): void {
             />Show names
           </label>
         </div>
-        <div class="players">
+        <!-- Our team comes from the squad: the number picks a squad player, the name goes to the squad. -->
+        <div v-if="side === store.board.gameDay.team" class="players">
+          <div class="players-head"><span>No.</span><span>Name</span><span>Role</span></div>
+          <div v-for="p in playersBySide[side]" :key="p.id" class="player-row">
+            <MemberPicker
+              class="num-pick"
+              compact
+              :label="`Squad player, ${p.role || p.number}`"
+              :current="p.memberId"
+              @pick="(m) => store.assignMemberTo('player', p.id, m)"
+            />
+            <input
+              v-if="!p.name || naming.has(p.id)"
+              class="input"
+              :aria-label="`Name for number ${p.number}`"
+              :value="p.name"
+              placeholder="Name"
+              @focus="setNaming(p.id, true)"
+              @blur="setNaming(p.id, false)"
+              @input="store.updatePlayer(p.id, { name: ($event.target as HTMLInputElement).value })"
+            />
+            <span v-else class="name-fixed" :title="`Change ${p.name}'s name in the Squad tab`">{{ p.name }}</span>
+            <span class="role">{{ p.role }}</span>
+          </div>
+          <p class="hint">
+            Pick a squad player by number; one already on the field swaps. Name a new player here; change a name in
+            the Squad tab.
+          </p>
+        </div>
+        <div v-else class="players">
           <div class="players-head"><span>No.</span><span>Name</span><span>Role</span></div>
           <div v-for="p in playersBySide[side]" :key="p.id" class="player-row">
             <input
@@ -194,6 +236,12 @@ function onNumber(id: string, e: Event): void {
   gap: 8px;
   align-items: center;
 }
+.num-pick {
+  height: 36px;
+  padding: 0 4px;
+  font-weight: 600;
+  text-align: center;
+}
 .players-head {
   font-size: 12px;
   font-weight: 600;
@@ -206,6 +254,16 @@ function onNumber(id: string, e: Event): void {
   text-align: center;
   font-weight: 600;
   padding: 0 4px;
+}
+.name-fixed {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
 }
 .role {
   font-size: 12px;

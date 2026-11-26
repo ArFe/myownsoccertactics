@@ -279,7 +279,7 @@ test('saves starting positions and loads them on another board, even after a rel
   let { board } = await state(page);
   expect(board.players.find((p) => p.team === 'home')!.x).toBeCloseTo(moved.x, 1);
   expect(board.teams.home.formation).toBe('Build-up shape');
-  await expect(page.locator('[data-testid="team-home"] select')).toHaveValue('Build-up shape');
+  await expect(page.locator('[data-testid="team-home"] select').first()).toHaveValue('Build-up shape');
 
   // Home onto Away: turned around.
   await card.getByRole('group', { name: 'Load onto' }).getByRole('button', { name: 'Away' }).click();
@@ -538,6 +538,8 @@ test('game day: one team, times with colours, subs on the bench and in the PNG',
   await card.getByLabel('Minute of time 1').press('Tab');
   // A sub is picked from the squad; "New player…" adds one there first.
   await card.getByLabel('Add a sub').selectOption({ label: 'New player…' });
+  // Every squad number is taken, nameless players on the field too.
+  await expect(page.getByRole('dialog', { name: 'Add players' }).getByLabel('New player number')).toHaveValue('12');
   await addPlayer(page, 12, 'Ana');
   await page.getByRole('dialog', { name: 'Add players' }).getByRole('button', { name: 'Done' }).click();
   const sub = card.getByTestId('sub-12');

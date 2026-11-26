@@ -92,7 +92,15 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   added in the "Add players" window (`composables/addPlayers.ts`, stays
   open) or from a CSV (`number,name,positions`, positions split by "/").
   `MemberPicker.vue` picks members: for a field spot anyone (they swap),
-  for the bench anyone not on the field.
+  for the bench anyone not on the field. In the Teams tab our team's rows
+  pick a squad player in the No. column (`MemberPicker`'s `compact`
+  shows the number only) and a name box only while the player has no name (it stays open
+  until it loses focus); a named squad player is renamed in the Squad tab
+  only, here and in the Selection panel. "New player…" in a sub picker
+  opens Add players for the bench: it suggests a number no squad player
+  has and refuses a nameless player's number (`addMember`'s
+  `fillBlank: false`), so a sub never takes over a player on the field.
+  The other team keeps plain number and name boxes.
 - All changes to a save go through the store (`stores/save.ts`), so undo and
   autosave see them.
 - Changing the save file shape: bump `SAVE_VERSION` and add a step to

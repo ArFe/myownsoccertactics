@@ -11,8 +11,16 @@ import { memberLabel } from '@/model/squad';
  *   sub for several players, so only those already a sub for `subFor` are left out.
  * "New player…" opens the Add players window, and the first one added is picked.
  * The empty choice (`emptyLabel`) shows only while nothing is picked.
+ * `compact` shows the picked player by number only, for a narrow column.
  */
-const props = defineProps<{ current?: string; emptyLabel?: string; label: string; bench?: boolean; subFor?: string }>();
+const props = defineProps<{
+  current?: string;
+  emptyLabel?: string;
+  label: string;
+  bench?: boolean;
+  subFor?: string;
+  compact?: boolean;
+}>();
 const emit = defineEmits<{ pick: [memberId: string] }>();
 const store = useSaveStore();
 const { openAddPlayers } = useAddPlayers();
@@ -28,7 +36,13 @@ const options = computed(() => {
   return [...store.sportSquad]
     .filter((m) => m.id === props.current || !used.has(m.id))
     .sort((a, b) => a.number - b.number)
-    .map((m) => ({ id: m.id, label: `${memberLabel(m)}${m.positions.length ? ` · ${m.positions.join('/')}` : ''}` }));
+    .map((m) => ({
+      id: m.id,
+      label:
+        props.compact && m.id === props.current
+          ? String(m.number)
+          : `${memberLabel(m)}${m.positions.length ? ` · ${m.positions.join('/')}` : ''}`,
+    }));
 });
 
 function onChange(e: Event): void {
@@ -36,7 +50,7 @@ function onChange(e: Event): void {
   const v = select.value;
   // The select shows what the store says, not what was clicked.
   select.value = props.current ?? '';
-  if (v === NEW) openAddPlayers((id) => emit('pick', id));
+  if (v === NEW) openAddPlayers((id) => emit('pick', id), { bench: props.bench });
   else if (v) emit('pick', v);
 }
 </script>
