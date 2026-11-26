@@ -203,7 +203,7 @@ test('keeps many boards in one save, downloads and uploads it', async ({ page })
   await expect(page.locator('.boards li')).toHaveCount(2);
 
   // Switch back to the first board.
-  await page.locator('.boards').getByRole('button', { name: /Board 1/ }).click();
+  await page.locator('.boards').getByRole('button', { name: /^Board 1/ }).click();
   await expect(page.getByLabel('Board name', { exact: true })).toHaveValue('Board 1');
 
   const [download] = await Promise.all([
@@ -220,6 +220,36 @@ test('keeps many boards in one save, downloads and uploads it', async ({ page })
   await page.getByTestId('upload-input').setInputFiles(file);
   await expect(page.getByText('Added 2 boards.')).toBeVisible();
   expect((await state(page)).save.boards).toHaveLength(4);
+});
+
+test('deletes a board from the sidebar after asking, keeps the last one, and undo brings it back', async ({ page }) => {
+  const sidebar = page.getByRole('navigation', { name: 'Boards and tools' });
+  const boards = sidebar.locator('.boards li');
+  // The only board cannot be deleted.
+  await expect(sidebar.getByRole('button', { name: 'Delete Board 1' })).toBeDisabled();
+
+  await page.getByRole('button', { name: 'New 7v7 board' }).click();
+  await expect(boards).toHaveCount(2);
+  const second = (await state(page)).board.id;
+
+  // Saying no keeps it.
+  page.once('dialog', (d) => d.dismiss());
+  await sidebar.getByRole('button', { name: 'Delete Board 2' }).click();
+  await expect(boards).toHaveCount(2);
+
+  // Saying yes deletes it, and the board before it opens.
+  page.once('dialog', (d) => {
+    expect(d.message()).toBe('Delete the board "Board 2"? You can undo this.');
+    void d.accept();
+  });
+  await sidebar.getByRole('button', { name: 'Delete Board 2' }).click();
+  await expect(boards).toHaveCount(1);
+  expect((await state(page)).board.name).toBe('Board 1');
+  await expect(sidebar.getByRole('button', { name: 'Delete Board 1' })).toBeDisabled();
+
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(boards).toHaveCount(2);
+  expect((await state(page)).save.boards.map((b) => b.id)).toContain(second);
 });
 
 test('rejects a file that is not a save', async ({ page }) => {
