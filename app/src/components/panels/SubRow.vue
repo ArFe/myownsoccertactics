@@ -1,13 +1,25 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useSaveStore } from '@/stores/save';
 import type { Player, Sub, SubWave } from '@/model/types';
-import { memberLabel } from '@/model/squad';
 import Icon from '../Icon.vue';
 import MemberPicker from './MemberPicker.vue';
 
-/** One sub: who (from the squad), who they come on for, when, swap and delete. */
+/**
+ * One sub: who (from the squad), who they come on for, when, swap and delete.
+ * One bench player can have several rows: one per player they may come on for.
+ */
 const props = defineProps<{ sub: Sub; onField: Player[]; waves: SubWave[] }>();
 const store = useSaveStore();
+
+/** Players this sub may come on for: not those the same bench player already covers in another row. */
+const forOptions = computed(() =>
+  props.onField.filter(
+    (p) =>
+      p.id === props.sub.replaces ||
+      !store.board.subs.some((s) => s.id !== props.sub.id && s.memberId === props.sub.memberId && s.replaces === p.id),
+  ),
+);
 
 function val(e: Event): string {
   return (e.target as HTMLInputElement).value;
@@ -25,14 +37,14 @@ function playerLabel(id: string): string {
     <MemberPicker
       class="who"
       label="Sub player"
+      bench
+      :sub-for="sub.replaces"
       :current="sub.memberId"
-      :empty-label="`${memberLabel(sub)} (not in squad)`"
       @pick="(m) => store.assignMemberTo('sub', sub.id, m)"
-      @none="store.assignMemberTo('sub', sub.id, null)"
     />
     <div class="sub-plan">
       <select class="select" aria-label="Comes on for" :value="sub.replaces" @change="store.updateSub(sub.id, { replaces: val($event) })">
-        <option v-for="p in onField" :key="p.id" :value="p.id">for {{ playerLabel(p.id) }}</option>
+        <option v-for="p in forOptions" :key="p.id" :value="p.id">for {{ playerLabel(p.id) }}</option>
       </select>
       <select class="select" aria-label="Time" :value="sub.waveId ?? ''" @change="store.updateSub(sub.id, { waveId: val($event) || null })">
         <option value="">No time yet</option>

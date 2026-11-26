@@ -6,14 +6,17 @@ import { parsePositions } from '@/model/squad';
 import type { SquadMember } from '@/model/types';
 import Icon from '../Icon.vue';
 
-/** Every player of our squad, in one list. Boards pick from it. */
+/**
+ * Every player of the open sport's squad, in one list. Our team's spots and
+ * subs are always members; a member made for a spot has no name until typed.
+ */
 const store = useSaveStore();
 const { openAddPlayers } = useAddPlayers();
 const fileInput = ref<HTMLInputElement | null>(null);
 const errors = ref<Record<string, string>>({});
 const report = ref<string[] | null>(null);
 
-const squad = computed(() => [...store.save.squad].sort((a, b) => a.number - b.number));
+const squad = computed(() => [...store.sportSquad].sort((a, b) => a.number - b.number));
 
 /** Where each member is on the open board. */
 const where = computed(() => {
@@ -57,7 +60,10 @@ async function onFile(e: Event): Promise<void> {
 <template>
   <div class="stack squad" data-testid="squad">
     <h3 class="section-title">Squad · {{ squad.length }} player{{ squad.length === 1 ? '' : 's' }}</h3>
-    <p class="hint">Your players, for every board. Click a player on the field, or use Game day, to pick who plays where.</p>
+    <p class="hint">
+      Your {{ store.sport.name.toLowerCase() }} players, for every board of the sport. Each player of our team is one of
+      them: a new spot adds a player with no name. Type the name here or on the field.
+    </p>
     <div class="actions">
       <button type="button" class="btn small primary" @click="openAddPlayers()"><Icon name="plus" :size="14" />Add players</button>
       <button type="button" class="btn small" @click="fileInput?.click()"><Icon name="upload" :size="14" />Import CSV</button>

@@ -2,21 +2,30 @@
 import { computed } from 'vue';
 import { useSaveStore } from '@/stores/save';
 import { useAddPlayers } from '@/composables/addPlayers';
-import { memberLabel, membersOnBoard } from '@/model/squad';
+import { memberLabel } from '@/model/squad';
 
 /**
- * Picks a squad player: those not yet on this board, plus `current`.
+ * Picks a player from the open sport's squad.
+ * - For a field spot: anyone; one already on the field or bench swaps with this spot.
+ * - For the bench (`bench`): anyone not on the field. One player may be a
+ *   sub for several players, so only those already a sub for `subFor` are left out.
  * "New player…" opens the Add players window, and the first one added is picked.
+ * The empty choice (`emptyLabel`) shows only while nothing is picked.
  */
-const props = defineProps<{ current?: string; emptyLabel: string; label: string }>();
-const emit = defineEmits<{ pick: [memberId: string]; none: [] }>();
+const props = defineProps<{ current?: string; emptyLabel?: string; label: string; bench?: boolean; subFor?: string }>();
+const emit = defineEmits<{ pick: [memberId: string] }>();
 const store = useSaveStore();
 const { openAddPlayers } = useAddPlayers();
 
 const NEW = '__new';
 const options = computed(() => {
-  const used = membersOnBoard(store.board);
-  return [...store.save.squad]
+  const b = store.board;
+  const used = new Set<string>();
+  if (props.bench) {
+    for (const p of b.players) if (p.memberId) used.add(p.memberId);
+    for (const s of b.subs) if (s.memberId && s.replaces === props.subFor) used.add(s.memberId);
+  }
+  return [...store.sportSquad]
     .filter((m) => m.id === props.current || !used.has(m.id))
     .sort((a, b) => a.number - b.number)
     .map((m) => ({ id: m.id, label: `${memberLabel(m)}${m.positions.length ? ` · ${m.positions.join('/')}` : ''}` }));
@@ -28,14 +37,13 @@ function onChange(e: Event): void {
   // The select shows what the store says, not what was clicked.
   select.value = props.current ?? '';
   if (v === NEW) openAddPlayers((id) => emit('pick', id));
-  else if (v === '') emit('none');
-  else emit('pick', v);
+  else if (v) emit('pick', v);
 }
 </script>
 
 <template>
   <select class="select" :aria-label="label" :value="current ?? ''" @change="onChange">
-    <option value="">{{ emptyLabel }}</option>
+    <option v-if="!current" value="">{{ emptyLabel ?? 'Pick a player…' }}</option>
     <option v-for="o in options" :key="o.id" :value="o.id">{{ o.label }}</option>
     <option :value="NEW">New player…</option>
   </select>

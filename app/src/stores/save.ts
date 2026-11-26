@@ -10,18 +10,21 @@ import type { SportDefinition } from '@/model/sports/types';
 import { clampToField, round, scaleBoardContents, tidy } from '@/model/geometry';
 import { createHistory } from '@/model/history';
 import { poseOf, setPose, spotOf, type Pose } from '@/model/pose';
-import { MAX_SUBS, MAX_WAVES, createSub, createWave, swapIn, tidySubs } from '@/model/gameDay';
+import { MAX_SUBS, MAX_WAVES, alreadySubFor, createSub, createWave, swapIn, tidySubs } from '@/model/gameDay';
 import {
   MAX_SQUAD,
   assignMember,
   cleanPositions,
   createMember,
+  ensureSquad,
   fixNumberClashes,
+  isBlank,
   memberProblem,
-  nextFreeNumber,
+  nextNumberToAdd,
   numberHolder,
   parseSquadCsv,
   syncMember,
+  squadOf,
   takenMessage,
   teamOf,
   unlinkMember,
@@ -92,6 +95,8 @@ function snapshotOf(save: SaveFile): string {
 
 export const useSaveStore = defineStore('save', () => {
   const loaded = loadFromStorage(storage());
+  // Our team's players are squad members from the start (a new save too).
+  ensureSquad(loaded.save);
   const save = ref<SaveFile>(loaded.save);
   const notice = ref<string | null>(loaded.warning ?? null);
   const selection = ref<Selection | null>(null);
@@ -111,6 +116,8 @@ export const useSaveStore = defineStore('save', () => {
   const sport = computed<SportDefinition>(() => getSport(board.value.sport));
   /** Boards of the open board's sport, in save order. Each sport has its own list. */
   const sportBoards = computed<Board[]>(() => save.value.boards.filter((b) => b.sport === board.value.sport));
+  /** The squad of the open board's sport. Each sport has its own. */
+  const sportSquad = computed<SquadMember[]>(() => save.value.squad.filter((m) => m.sport === board.value.sport));
 
   // ----- the open play (view state, not saved and not undone) -----
   const openPlayId = ref<string | null>(null);
@@ -150,6 +157,8 @@ export const useSaveStore = defineStore('save', () => {
 
   /** Records an undo step. Call after every change to the save. */
   function commit(mergeKey?: string): void {
+    // Every player and sub of our team stays a squad member, on every board.
+    ensureSquad(save.value);
     save.value.updatedAt = nowIso();
     history.record(snapshotOf(save.value), mergeKey);
     syncHistoryFlags();
@@ -311,10 +320,10 @@ export const useSaveStore = defineStore('save', () => {
       // Saved positions come along; uploading the same file twice does not repeat them.
       const have = new Set(save.value.savedPositions.map((s) => s.id));
       save.value.savedPositions.push(...deepCopy(incoming.savedPositions.filter((s) => !have.has(s.id))));
-      // Squad members come along unless their id or number is here already.
+      // Squad members come along unless their id, or their number in that sport, is here already.
       const squad = save.value.squad;
       for (const m of incoming.squad) {
-        if (squad.length >= MAX_SQUAD || squad.some((x) => x.id === m.id || x.number === m.number)) continue;
+        if (squad.some((x) => x.id === m.id || (x.sport === m.sport && x.number === m.number))) continue;
         squad.push(deepCopy(m));
       }
       const ids = new Set(squad.map((m) => m.id));
@@ -440,8 +449,10 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   /**
-   * Changes a player's number or name. A squad member's change goes to the
-   * squad, so every board shows it. Returns why it was refused, or null.
+   * Changes a player's number or name. A name goes to the squad member, so
+   * every board shows it. On our team a new number puts another member in
+   * the spot: the one with that number, or a new one with no name.
+   * Returns why it was refused, or null.
    */
   function updatePlayer(id: string, patch: Partial<Pick<Player, 'name' | 'number'>>): string | null {
     const p = board.value.players.find((x) => x.id === id);
@@ -450,14 +461,24 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   function updateHolder(h: Holder, patch: { name?: string; number?: number }, key: string): string | null {
-    if (h.memberId) return updateMember(h.memberId, patch);
-    if (patch.number !== undefined) {
-      if (!validNumber(patch.number)) return 'A number is a whole number from 0 to 999.';
+    const { number, name } = patch;
+    if (number !== undefined && number !== h.number) {
+      if (!validNumber(number)) return 'A number is a whole number from 0 to 999.';
       const team = teamOf(board.value, h);
-      const other = team && numberHolder(board.value, team, patch.number, h);
-      if (other) return takenMessage(patch.number, other);
+      const other = team && numberHolder(board.value, team, number, h);
+      if (other) return takenMessage(number, other);
+      changeBoard(() => {
+        h.number = number;
+        // A member is their number: the spot links again by the new one.
+        if (h.memberId) {
+          delete h.memberId;
+          h.name = '';
+        }
+      }, key);
     }
-    changeBoard(() => Object.assign(h, patch), key);
+    if (name === undefined) return null;
+    if (h.memberId) return updateMember(h.memberId, { name });
+    changeBoard(() => (h.name = name), key);
     return null;
   }
 
@@ -468,14 +489,31 @@ export const useSaveStore = defineStore('save', () => {
     commit(mergeKey);
   }
 
-  /** The lowest number no one in the squad has. */
-  const nextSquadNumber = computed(() => nextFreeNumber(save.value.squad.map((m) => m.number)));
+  /** The lowest number in the open sport's squad that is free or has no name yet. */
+  const nextSquadNumber = computed(() => nextNumberToAdd(sportSquad.value));
 
+  /** Fills in a member with no name yet, so every spot that is them shows it. */
+  function fillMember(m: SquadMember, input: { name: string; positions?: string[] }): void {
+    m.name = input.name.trim().slice(0, 40);
+    m.positions = cleanPositions(input.positions ?? []);
+    syncMember(save.value.boards, m);
+  }
+
+  /**
+   * Adds a player to the open sport's squad. A number whose member has no
+   * name yet (made for a spot) fills that member in.
+   */
   function addMember(input: { number: number; name: string; positions?: string[] }): { id: string } | { error: string } {
-    if (save.value.squad.length >= MAX_SQUAD) return { error: `The squad is full (${MAX_SQUAD} players).` };
-    const problem = memberProblem(save.value.squad, input);
+    const squad = sportSquad.value;
+    const problem = memberProblem(squad, input, undefined, true);
     if (problem) return { error: problem };
-    const m = createMember(input);
+    const blank = squad.find((m) => m.number === input.number && isBlank(m));
+    if (blank) {
+      changeSquad(() => fillMember(blank, input));
+      return { id: blank.id };
+    }
+    if (squad.length >= MAX_SQUAD) return { error: `The squad is full (${MAX_SQUAD} players).` };
+    const m = createMember({ ...input, sport: board.value.sport });
     changeSquad(() => save.value.squad.push(m));
     return { id: m.id };
   }
@@ -485,7 +523,7 @@ export const useSaveStore = defineStore('save', () => {
     const m = save.value.squad.find((x) => x.id === id);
     if (!m) return null;
     if (patch.number !== undefined) {
-      const problem = memberProblem(save.value.squad, { number: patch.number, name: m.name }, id);
+      const problem = memberProblem(squadOf(save.value.squad, m.sport), { number: patch.number, name: m.name }, id);
       if (problem) return problem;
     }
     changeSquad(() => {
@@ -497,7 +535,7 @@ export const useSaveStore = defineStore('save', () => {
     return null;
   }
 
-  /** Spots and subs who were this member keep the number and name. */
+  /** Spots and subs who were this member keep the number and get a new member with no name. */
   function deleteMember(id: string): void {
     changeSquad(() => {
       save.value.squad = save.value.squad.filter((m) => m.id !== id);
@@ -505,16 +543,28 @@ export const useSaveStore = defineStore('save', () => {
     });
   }
 
+  /** Reads a CSV into the open sport's squad; a row with a blank member's number fills them in. */
   function importSquadCsv(text: string): CsvResult {
-    const result = parseSquadCsv(text, save.value.squad);
-    if (result.members.length) changeSquad(() => save.value.squad.push(...result.members));
+    const squad = sportSquad.value;
+    const result = parseSquadCsv(text, squad, board.value.sport);
+    if (result.members.length)
+      changeSquad(() => {
+        for (const m of result.members) {
+          const blank = squad.find((x) => x.number === m.number && isBlank(x));
+          if (blank) fillMember(blank, m);
+          else save.value.squad.push(m);
+        }
+      });
     return result;
   }
 
   /** Puts a squad member in a field spot or a sub, on the open board; null takes them out. */
   function assignMemberTo(kind: 'player' | 'sub', itemId: string, memberId: string | null): void {
-    const member = memberId ? save.value.squad.find((m) => m.id === memberId) : null;
+    const member = memberId ? sportSquad.value.find((m) => m.id === memberId) : null;
     if (memberId && !member) return;
+    const sub = kind === 'sub' ? board.value.subs.find((s) => s.id === itemId) : undefined;
+    // A member comes on for a player once.
+    if (sub && alreadySubFor(board.value, memberId ?? undefined, sub.replaces, sub.id)) return;
     changeBoard((b) => {
       const item = kind === 'player' ? b.players.find((p) => p.id === itemId) : b.subs.find((s) => s.id === itemId);
       if (item) assignMember(b, item, member ?? null);
@@ -761,12 +811,16 @@ export const useSaveStore = defineStore('save', () => {
     changeBoard((b) => (b.waves = b.waves.filter((w) => w.id !== id)));
   }
 
-  /** A new sub for `replacesId`: a squad member, or a free number with no name. */
+  /**
+   * A new sub for `replacesId`: a squad member (who may be a sub for other
+   * players too, at other times), or a free number with no name.
+   */
   function addSub(replacesId: string, memberId?: string): string | null {
     const player = board.value.players.find((p) => p.id === replacesId);
     if (!player || board.value.subs.length >= MAX_SUBS) return null;
-    const member = memberId ? save.value.squad.find((m) => m.id === memberId) : undefined;
+    const member = memberId ? sportSquad.value.find((m) => m.id === memberId) : undefined;
     if (memberId && !member) return null;
+    if (alreadySubFor(board.value, memberId, replacesId)) return null;
     const sub = createSub(board.value, player);
     changeBoard((b) => {
       b.subs.push(sub);
@@ -790,6 +844,7 @@ export const useSaveStore = defineStore('save', () => {
       const sub = b.subs.find((x) => x.id === id);
       if (!sub) return;
       if (patch.replaces && !b.players.some((p) => p.id === patch.replaces)) return;
+      if (patch.replaces && alreadySubFor(b, sub.memberId, patch.replaces, sub.id)) return;
       if (patch.waveId && !b.waves.some((w) => w.id === patch.waveId)) return;
       Object.assign(sub, patch);
     }, `sub-${id}-${Object.keys(patch).join()}`);
@@ -994,6 +1049,7 @@ export const useSaveStore = defineStore('save', () => {
     setActiveBoard,
     openSport,
     sportBoards,
+    sportSquad,
     addBoard,
     duplicateBoard,
     deleteBoard,
