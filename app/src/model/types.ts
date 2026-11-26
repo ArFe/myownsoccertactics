@@ -138,7 +138,7 @@ export interface Board {
   cones: Cone[];
   /** Named step-by-step moves of the players and the ball. */
   plays: Play[];
-  /** Players waiting to come on, each for one player on the field. */
+  /** Planned subs: each comes on for one player; one bench player may have several. */
   subs: Sub[];
   /** Substitution times, each with a colour. */
   waves: SubWave[];
@@ -218,12 +218,15 @@ export const APP_ID = 'myownsoccertactics';
  * 7. `gameDay.subsShown` can be `none`, and shows subs with game day off too.
  * 8. Saves have a `squad`; players and subs may name a `memberId`.
  * 9. Boards have `numberSpot`; players and step spots may have `arms` and `lift`.
+ * 10. Squad members have a `sport`: each sport has its own squad.
  */
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
-/** One player of our squad. Numbers are unique in the squad. */
+/** One player of our squad. Numbers are unique in a sport's squad. */
 export interface SquadMember {
   id: string;
+  /** The sport whose boards this member plays on. */
+  sport: SportId;
   number: number;
   name: string;
   /** Position names, e.g. ["ST", "LW"]. */
@@ -261,7 +264,7 @@ export interface SaveFile {
   activeBoardId: string;
   boards: Board[];
   savedPositions: SavedPositions[];
-  /** Our players, shared by every board of the save. */
+  /** Our players, one squad per sport, shared by every board of that sport. */
   squad: SquadMember[];
   updatedAt: string;
 }

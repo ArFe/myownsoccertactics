@@ -93,9 +93,7 @@ defineExpose({ focusName });
         <MemberPicker
           label="Squad player"
           :current="player.memberId"
-          empty-label="Not in squad (number only)"
           @pick="(m) => store.assignMemberTo('player', player!.id, m)"
-          @none="store.assignMemberTo('player', player!.id, null)"
         />
       </label>
       <div class="player-grid">
@@ -126,7 +124,7 @@ defineExpose({ focusName });
       <p v-if="numberError" class="error" role="alert">{{ numberError }}</p>
       <p class="hint">
         Role: {{ player.role || '—' }}. Change the formation in the Teams tab.
-        <template v-if="player.memberId">Number and name changes go to the squad.</template>
+        <template v-if="player.memberId">A name goes to the squad; another number puts that squad player here.</template>
       </p>
       <div v-if="pose" class="stack" data-testid="player-pose">
         <span class="field-label">Arms</span>
@@ -160,7 +158,7 @@ defineExpose({ focusName });
       <div v-if="subsShown" class="stack" data-testid="player-subs">
         <span class="field-label">Subs for {{ player.number }}</span>
         <SubRow v-for="s in playerSubs" :key="s.id" :sub="s" :on-field="teamOnField" :waves="waves" />
-        <MemberPicker label="Add a sub" empty-label="Add a sub…" @pick="(m) => store.addSub(player!.id, m)" />
+        <MemberPicker label="Add a sub" empty-label="Add a sub…" bench :sub-for="player.id" @pick="(m) => store.addSub(player!.id, m)" />
       </div>
     </template>
 

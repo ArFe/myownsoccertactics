@@ -73,16 +73,26 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   name (its number if it has none). In game day, a selected player of
   our team lists its subs in the Selection panel; the row (`SubRow.vue`)
   is shared with the Game day card.
-- The squad lives in `model/squad.ts` and `save.squad` (save version 8):
-  our players, shared by every board, numbers unique. A field spot or a
-  sub links to a member with `memberId` and keeps a copy of the number
-  and name; `syncMember()` updates the copies on every board. No two
-  players of a team (field and bench) share a number: `changeBoard()`
-  runs `fixNumberClashes()`, and the store refuses a typed number that is
-  taken. Players are added in the "Add players" window
-  (`composables/addPlayers.ts`, stays open) or from a CSV
-  (`number,name,positions`, positions split by "/"). `MemberPicker.vue`
-  picks members for a spot or a sub.
+- The squad lives in `model/squad.ts` and `save.squad` (save version 10):
+  our players, one squad per sport (`member.sport`, `store.sportSquad`),
+  numbers unique within a sport. Every field player and sub of our team
+  (`gameDay.team`) is a member: `commit()` and loading run
+  `ensureSquad()`, which links each spot by number and makes a member with
+  no name when there is none (a "blank" member). The other team links to
+  no one. A spot keeps a copy of the number and name; `syncMember()`
+  updates the copies on every board. A member is their number: typing a
+  new number on a spot puts that member there (or a new blank one); a
+  name typed on a spot goes to the member. Adding a player with a blank
+  member's number fills that member in. Deleting a member who is on a
+  board leaves a new blank member with the same number. No two players of
+  a team share a number (`fixNumberClashes()`), except one member who is
+  a sub for several players: each `Sub` is one plan (player + time), so
+  a bench player can have several, never two for the same player, and
+  swapping them on drops their other plans (`swapIn()`). Players are
+  added in the "Add players" window (`composables/addPlayers.ts`, stays
+  open) or from a CSV (`number,name,positions`, positions split by "/").
+  `MemberPicker.vue` picks members: for a field spot anyone (they swap),
+  for the bench anyone not on the field.
 - All changes to a save go through the store (`stores/save.ts`), so undo and
   autosave see them.
 - Changing the save file shape: bump `SAVE_VERSION` and add a step to

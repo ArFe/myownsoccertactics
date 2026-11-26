@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createSave } from '@/model/factory';
 import { SAVE_VERSION } from '@/model/types';
+import { ensureSquad } from '@/model/squad';
 import { BROKEN_KEY, STORAGE_KEY, SaveFormatError, loadFromStorage, parseSave, serializeSave, writeToStorage } from '@/model/persistence';
 
 describe('parseSave', () => {
@@ -10,6 +11,8 @@ describe('parseSave', () => {
       id: 'a1', name: 'Zone 14', shape: 'rect', x: 72, y: 22.7, w: 16.5, h: 22.6, points: [],
       color: '#EF4444', opacity: 0.28, border: 'solid', label: 'top-left', note: 'Overload',
     });
+    // The app keeps our team in the squad; a save it writes always has them.
+    ensureSquad(save);
     expect(parseSave(serializeSave(save))).toEqual(save);
   });
 
@@ -64,8 +67,8 @@ describe('parseSave', () => {
     expect(out.boards[0]!.sport).toBe('soccer');
     expect(out.boards[0]!.field.surfaceColor).toBe('#123456');
     expect('grassColor' in out.boards[0]!.field).toBe(false);
-    // Everything else comes through unchanged.
-    expect(out.boards[0]!.players).toEqual(v2.boards[0]!.players);
+    // Everything else comes through unchanged; our team is in the squad now.
+    expect(out.boards[0]!.players.map(({ memberId: _, ...p }) => p)).toEqual(v2.boards[0]!.players);
   });
 
   it('reads an unknown sport or preset as the defaults, and drops unknown markings', () => {

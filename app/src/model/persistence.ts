@@ -4,7 +4,7 @@ import { clampSize, isKnownPreset } from './field';
 import { MAX_PLAYS, MAX_STEPS, STEP_SECONDS, clampSeconds } from './plays';
 import { MAX_SUBS, MAX_WAVES } from './gameDay';
 import { setPose } from './pose';
-import { MAX_SQUAD, cleanPositions, fixNumberClashes, tidyMemberLinks, validNumber } from './squad';
+import { cleanPositions, ensureSquad, validNumber } from './squad';
 import { DEFAULT_SPORT, SPORT_IDS, getSport } from './sports';
 import type { SportDefinition } from './sports/types';
 import { APP_ID, SAVE_VERSION } from './types';
@@ -160,19 +160,21 @@ function memberLink(v: unknown): { memberId?: string } {
   return typeof v === 'string' && v ? { memberId: v } : {};
 }
 
-/** Squad numbers are unique; a later member with a taken number is dropped. */
+/** Numbers are unique in a sport's squad; a later member with a taken number is dropped. */
 function readSquad(v: unknown): SquadMember[] {
   const ids = new Set<string>();
-  const numbers = new Set<number>();
+  const numbers = new Set<string>();
   const out: SquadMember[] = [];
   list(v).forEach((m, j) => {
     const number = Math.round(num(m.number, NaN));
     const memberId = id(m.id, 'm', j);
-    if (!validNumber(number) || numbers.has(number) || ids.has(memberId) || out.length >= MAX_SQUAD) return;
+    const sport = oneOf(m.sport, SPORT_IDS, DEFAULT_SPORT);
+    const key = `${sport}:${number}`;
+    if (!validNumber(number) || numbers.has(key) || ids.has(memberId)) return;
     ids.add(memberId);
-    numbers.add(number);
+    numbers.add(key);
     const positions = Array.isArray(m.positions) ? m.positions.filter((p): p is string => typeof p === 'string') : [];
-    out.push({ id: memberId, number, name: str(m.name, '').slice(0, 40), positions: cleanPositions(positions) });
+    out.push({ id: memberId, sport, number, name: str(m.name, '').slice(0, 40), positions: cleanPositions(positions) });
   });
   return out;
 }
@@ -372,6 +374,16 @@ function v8ToV9(data: Obj): Obj {
   return { ...data, version: 9, boards };
 }
 
+/**
+ * Version 9 to 10: each sport has its own squad. The squad so far was made
+ * for soccer; other sports' boards get their own members when the save is
+ * read (`ensureSquad()`), with the names their spots had.
+ */
+function v9ToV10(data: Obj): Obj {
+  const squad = Array.isArray(data.squad) ? data.squad.map((m: unknown) => (isObj(m) ? { ...m, sport: 'soccer' } : m)) : data.squad;
+  return { ...data, version: 10, squad };
+}
+
 /** Upgrades older save files, one version at a time. */
 export function migrate(data: Obj, from: number): Obj {
   let out = data;
@@ -383,6 +395,7 @@ export function migrate(data: Obj, from: number): Obj {
   if (from < 7) out = v6ToV7(out);
   if (from < 8) out = v7ToV8(out);
   if (from < 9) out = v8ToV9(out);
+  if (from < 10) out = v9ToV10(out);
   return out;
 }
 
@@ -460,16 +473,8 @@ export function parseSave(text: string): SaveFile {
   });
 
   const squad = readSquad(migrated.squad);
-  tidyMemberLinks(boards, squad);
-  // Spots and subs take their member's number and name; no two share a number.
-  const byId = new Map(squad.map((m) => [m.id, m]));
-  for (const b of boards) {
-    for (const h of [...b.players, ...b.subs]) {
-      const m = h.memberId ? byId.get(h.memberId) : undefined;
-      if (m) Object.assign(h, { number: m.number, name: m.name });
-    }
-    fixNumberClashes(b);
-  }
+  // Our team's spots and subs are squad members, with their number and name.
+  ensureSquad({ boards, squad });
 
   const active = str(migrated.activeBoardId, '');
   return {

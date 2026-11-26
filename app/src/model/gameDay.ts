@@ -45,6 +45,11 @@ export function teamSubs(board: Board, team: Player['team']): Sub[] {
   return board.subs.filter((s) => playerOf(board, s)?.team === team).sort(byWave(board));
 }
 
+/** Does this member already have a plan to come on for this player? */
+export function alreadySubFor(board: Board, memberId: string | undefined, playerId: string, exceptSubId?: string): boolean {
+  return !!memberId && board.subs.some((s) => s.id !== exceptSubId && s.memberId === memberId && s.replaces === playerId);
+}
+
 /** Subs waiting for one player, in the order they come on. */
 export function subsFor(board: Board, playerId: string): Sub[] {
   return board.subs.filter((s) => s.replaces === playerId).sort(byWave(board));
@@ -76,12 +81,14 @@ export function tidySubs(board: Board): void {
  * and id (so plays, saved positions and other subs for it still work), and
  * takes the sub's number and name. The player coming off goes to the bench
  * for the same spot with no time, so a rolling sub can be swapped back.
+ * The sub's plans to come on for other players go: they are on now.
  * Returns false when the sub or its player is not there.
  */
 export function swapIn(board: Board, subId: string): boolean {
   const sub = board.subs.find((s) => s.id === subId);
   const player = sub && playerOf(board, sub);
   if (!sub || !player) return false;
+  if (sub.memberId) board.subs = board.subs.filter((s) => s === sub || s.memberId !== sub.memberId);
   const off = { number: player.number, name: player.name, memberId: player.memberId };
   player.number = sub.number;
   player.name = sub.name;

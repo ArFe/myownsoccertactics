@@ -543,12 +543,19 @@ test('game day: one team, times with colours, subs on the bench and in the PNG',
   const sub = card.getByTestId('sub-12');
   await sub.getByLabel('Comes on for').selectOption({ label: 'for 9' });
   await sub.getByLabel('Time').selectOption({ label: "20'" });
+  // The same player can be a sub for another player too, here with no time.
+  await card.getByLabel('Add a sub').selectOption({ label: '12 Ana' });
+  await card.getByTestId('sub-12').nth(1).getByLabel('Comes on for').selectOption({ label: 'for 7' });
   await card.getByRole('group', { name: 'Show subs' }).getByRole('button', { name: 'Both' }).click();
 
   ({ board } = await state(page));
   const nine = board.players.find((p) => p.team === 'home' && p.number === 9)!;
+  const seven = board.players.find((p) => p.team === 'home' && p.number === 7)!;
   expect(board.waves).toMatchObject([{ minute: 20 }]);
-  expect(board.subs).toMatchObject([{ number: 12, name: 'Ana', replaces: nine.id, waveId: board.waves[0]!.id }]);
+  expect(board.subs).toMatchObject([
+    { number: 12, name: 'Ana', replaces: nine.id, waveId: board.waves[0]!.id },
+    { number: 12, name: 'Ana', replaces: seven.id, waveId: null },
+  ]);
   expect(board.gameDay.subsShown).toBe('both');
 
   // The PNG has the bench too: taller than the field alone.
@@ -558,7 +565,7 @@ test('game day: one team, times with colours, subs on the bench and in the PNG',
   };
   const withBench = await pngHeight();
 
-  // During the match: swap Ana on for 9; 9 goes to the bench.
+  // During the match: swap Ana on for 9; 9 goes to the bench, and Ana's plan for 7 goes.
   await card.getByRole('button', { name: 'Swap 12 on for 9' }).click();
   ({ board } = await state(page));
   expect(board.players.find((p) => p.id === nine.id)).toMatchObject({ number: 12, name: 'Ana', x: nine.x, y: nine.y });
@@ -616,21 +623,29 @@ test('squad: add players in a window, import a CSV, and pick them on the field',
   await expect(squad.getByTestId('csv-report')).toContainText('Added 1 player from squad.csv.');
   await expect(squad.getByTestId('csv-report')).toContainText('Row 3 skipped: Number 9 is taken by Ariel.');
   let { save } = await state(page);
-  expect(save.squad.map((m) => [m.number, m.name, m.positions])).toEqual([
+  // Our team was in the squad from the start, with no names: adding fills them in.
+  const named = () => save.squad.filter((m) => m.name).sort((x, y) => x.number - y.number);
+  expect(named().map((m) => [m.number, m.name, m.positions])).toEqual([
+    [1, 'Keller', ['GK']],
     [9, 'Ariel', ['ST', 'LW']],
     [10, 'Test', []],
-    [1, 'Keller', ['GK']],
   ]);
+  const ariel = named()[1]!.id;
+  let { board } = await state(page);
+  const homeAt = (n: number) => board.players.find((p) => p.team === 'home' && p.number === n)!;
+  expect(homeAt(9)).toMatchObject({ name: 'Ariel', memberId: ariel });
+  expect(homeAt(1)).toMatchObject({ name: 'Keller' });
 
-  // Pick Ariel for the 6 spot: the old 9 takes number 6.
-  const six = (await state(page)).board.players.find((p) => p.team === 'home' && p.number === 6)!;
+  // Pick Ariel for the 6 spot: the two swap.
+  const six = homeAt(6);
+  const nine = homeAt(9);
   const at = await screenPoint(page, six.x, six.y);
   await page.mouse.click(at.x, at.y);
   await page.getByLabel('Squad player').selectOption({ label: '9 Ariel · ST/LW' });
-  let board;
   ({ board } = await state(page));
   const home = board.players.filter((p) => p.team === 'home');
-  expect(home.find((p) => p.id === six.id)).toMatchObject({ number: 9, name: 'Ariel', memberId: save.squad[0]!.id });
+  expect(home.find((p) => p.id === six.id)).toMatchObject({ number: 9, name: 'Ariel', memberId: ariel });
+  expect(home.find((p) => p.id === nine.id)).toMatchObject({ number: 6, memberId: six.memberId });
   expect(new Set(home.map((p) => p.number)).size).toBe(home.length);
   // A number someone else on the team has is refused.
   const number = page.getByLabel('Number', { exact: true });
@@ -638,7 +653,7 @@ test('squad: add players in a window, import a CSV, and pick them on the field',
   await number.press('Tab');
   await expect(page.getByRole('alert')).toHaveText('Number 1 is taken by Keller.');
   ({ save } = await state(page));
-  expect(save.squad[0]!.number).toBe(9);
+  expect(save.squad.find((m) => m.id === ariel)!.number).toBe(9);
 });
 
 test('/soccer lands on a soccer board', async ({ page }) => {

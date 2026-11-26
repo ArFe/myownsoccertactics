@@ -26,9 +26,15 @@ function val(e: Event): string {
   return (e.target as HTMLInputElement).value;
 }
 
-/** A new sub goes in for the first player who has none yet. */
+/**
+ * A new sub goes in for the first player who has none yet, else the first
+ * one this bench player does not cover yet. Change who in the row.
+ */
 function addSub(memberId: string): void {
-  const free = onField.value.find((p) => !store.board.subs.some((s) => s.replaces === p.id)) ?? onField.value[0];
+  const subs = store.board.subs;
+  const covered = (p: { id: string }) => subs.some((s) => s.replaces === p.id && s.memberId === memberId);
+  const free =
+    onField.value.find((p) => !subs.some((s) => s.replaces === p.id)) ?? onField.value.find((p) => !covered(p));
   if (free) store.addSub(free.id, memberId);
 }
 </script>
@@ -114,7 +120,7 @@ function addSub(memberId: string): void {
     <div class="stack">
       <span class="field-label">Subs · {{ team.name }}</span>
       <SubRow v-for="s in subs" :key="s.id" :sub="s" :on-field="onField" :waves="waves" />
-      <MemberPicker v-if="onField.length" label="Add a sub" empty-label="Add a sub…" @pick="addSub" />
+      <MemberPicker v-if="onField.length" label="Add a sub" empty-label="Add a sub…" bench @pick="addSub" />
     </div>
   </section>
 </template>

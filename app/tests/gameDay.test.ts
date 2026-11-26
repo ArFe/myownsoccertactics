@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { cloneBoardWithNewIds, createBoard, createSave } from '@/model/factory';
 import { WAVE_COLORS, createSub, createWave, ringColor, subsFor, swapIn, teamSubs, tidySubs } from '@/model/gameDay';
 import { parseSave, serializeSave } from '@/model/persistence';
+import { ensureSquad } from '@/model/squad';
 import { useSaveStore } from '@/stores/save';
 
 function planned() {
@@ -98,6 +99,7 @@ describe('game day in the save file', () => {
     board.gameDay = { on: true, team: 'home', subsShown: 'both' };
     save.boards = [board];
     save.activeBoardId = board.id;
+    ensureSquad(save);
     const back = parseSave(serializeSave(save)).boards[0]!;
     expect(back.subs).toEqual(board.subs);
     expect(back.waves).toEqual(board.waves);
