@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { nextTick } from 'vue';
 import { createPinia, setActivePinia, type Pinia } from 'pinia';
 import TeamsPanel from '@/components/panels/TeamsPanel.vue';
 import FieldPanel from '@/components/panels/FieldPanel.vue';
@@ -17,16 +18,52 @@ describe('panels', () => {
   });
   afterEach(() => mounted?.unmount());
 
-  it('renames a team and a player from the Teams panel', async () => {
+  it('renames a team and a player of the other team from the Teams panel', async () => {
     const store = useSaveStore();
     mounted = mount(TeamsPanel, pinia);
     const home = mounted.get('[data-testid="team-home"]');
     await setValue(home.querySelector<HTMLInputElement>('input.input')!, 'Riverside FC');
     expect(store.board.teams.home.name).toBe('Riverside FC');
-    const names = [...home.querySelectorAll<HTMLInputElement>('input[placeholder="Name"]')];
+    await click(mounted.get('[data-testid="team-away"] button[aria-expanded]'));
+    const away = mounted.get('[data-testid="team-away"]');
+    const names = [...away.querySelectorAll<HTMLInputElement>('input[placeholder="Name"]')];
     expect(names).toHaveLength(11);
     await setValue(names[0]!, 'Keller');
-    expect(store.board.players[0]!.name).toBe('Keller');
+    expect(store.board.players.find((p) => p.team === 'away')!.name).toBe('Keller');
+  });
+
+  it('our team picks squad players in the Teams panel; picking one on the field swaps', async () => {
+    const store = useSaveStore();
+    const { id } = store.addMember({ number: 9, name: 'Ariel' }) as { id: string };
+    mounted = mount(TeamsPanel, pinia);
+    const home = mounted.get('[data-testid="team-home"]');
+    const pickers = [...home.querySelectorAll<HTMLSelectElement>('select[aria-label^="Squad player"]')];
+    expect(pickers).toHaveLength(11);
+    const first = store.board.players.find((p) => p.team === 'home')!;
+    const nine = store.board.players.find((p) => p.team === 'home' && p.number === 9)!;
+    // Each row shows the number only; nameless players have a name box, Ariel's name is fixed.
+    expect(pickers[0]!.selectedOptions[0]!.textContent!.trim()).toBe('1');
+    expect(home.querySelectorAll('input[placeholder="Name"]')).toHaveLength(10);
+    expect(home.querySelector('.name-fixed')!.textContent).toBe('Ariel');
+    await setValue(pickers[0]!, id);
+    expect(first).toMatchObject({ number: 9, name: 'Ariel', memberId: id });
+    expect(nine.number).not.toBe(9);
+  });
+
+  it('names a nameless squad player from the Teams panel; then the name is fixed there', async () => {
+    const store = useSaveStore();
+    mounted = mount(TeamsPanel, pinia);
+    const box = () => mounted!.all<HTMLInputElement>('[data-testid="team-home"] input[aria-label="Name for number 1"]');
+    box()[0]!.dispatchEvent(new Event('focus'));
+    await setValue(box()[0]!, 'K');
+    // The box stays while the first name is typed.
+    await setValue(box()[0]!, 'Keller');
+    expect(store.sportSquad.find((m) => m.number === 1)!.name).toBe('Keller');
+    box()[0]!.dispatchEvent(new Event('blur'));
+    await nextTick();
+    expect(box()).toHaveLength(0);
+    expect(mounted.get('[data-testid="team-home"] .name-fixed').textContent).toBe('Keller');
+    expect(mounted.get<HTMLSelectElement>('select[aria-label="Squad player, GK"]').selectedOptions[0]!.textContent!.trim()).toBe('1');
   });
 
   it('changes formation from the Teams panel', async () => {

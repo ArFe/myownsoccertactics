@@ -20,6 +20,7 @@ import {
   fixNumberClashes,
   isBlank,
   memberProblem,
+  nextFreeNumber,
   nextNumberToAdd,
   numberHolder,
   parseSquadCsv,
@@ -491,6 +492,8 @@ export const useSaveStore = defineStore('save', () => {
 
   /** The lowest number in the open sport's squad that is free or has no name yet. */
   const nextSquadNumber = computed(() => nextNumberToAdd(sportSquad.value));
+  /** The lowest number no one in the open sport's squad has, nameless players too. */
+  const nextUnusedNumber = computed(() => nextFreeNumber(sportSquad.value.map((m) => m.number)));
 
   /** Fills in a member with no name yet, so every spot that is them shows it. */
   function fillMember(m: SquadMember, input: { name: string; positions?: string[] }): void {
@@ -501,13 +504,17 @@ export const useSaveStore = defineStore('save', () => {
 
   /**
    * Adds a player to the open sport's squad. A number whose member has no
-   * name yet (made for a spot) fills that member in.
+   * name yet (made for a spot) fills that member in, unless `fillBlank` is
+   * false (a new sub must not take over a nameless player): then it is taken.
    */
-  function addMember(input: { number: number; name: string; positions?: string[] }): { id: string } | { error: string } {
+  function addMember(
+    input: { number: number; name: string; positions?: string[] },
+    { fillBlank = true }: { fillBlank?: boolean } = {},
+  ): { id: string } | { error: string } {
     const squad = sportSquad.value;
-    const problem = memberProblem(squad, input, undefined, true);
+    const problem = memberProblem(squad, input, undefined, fillBlank);
     if (problem) return { error: problem };
-    const blank = squad.find((m) => m.number === input.number && isBlank(m));
+    const blank = fillBlank ? squad.find((m) => m.number === input.number && isBlank(m)) : undefined;
     if (blank) {
       changeSquad(() => fillMember(blank, input));
       return { id: blank.id };
@@ -1087,6 +1094,7 @@ export const useSaveStore = defineStore('save', () => {
     addSub,
     updateSub,
     nextSquadNumber,
+    nextUnusedNumber,
     addMember,
     updateMember,
     deleteMember,

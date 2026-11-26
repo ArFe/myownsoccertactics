@@ -7,7 +7,7 @@ import Icon from './Icon.vue';
 
 /** Adds squad players one after another; the window stays open until Done. */
 const store = useSaveStore();
-const { open, closeAddPlayers, added } = useAddPlayers();
+const { open, forBench, closeAddPlayers, added } = useAddPlayers();
 const dialog = ref<HTMLDialogElement | null>(null);
 const nameInput = ref<HTMLInputElement | null>(null);
 
@@ -21,7 +21,7 @@ const roles = computed(() => rolesOf(store.sport));
 const chosen = computed(() => parsePositions(positions.value));
 
 function reset(): void {
-  number.value = store.nextSquadNumber;
+  number.value = forBench.value ? store.nextUnusedNumber : store.nextSquadNumber;
   name.value = '';
   positions.value = '';
   error.value = null;
@@ -45,7 +45,10 @@ function toggleRole(role: string): void {
 }
 
 async function add(): Promise<void> {
-  const result = store.addMember({ number: Number(number.value), name: name.value, positions: chosen.value });
+  const result = store.addMember(
+    { number: Number(number.value), name: name.value, positions: chosen.value },
+    { fillBlank: !forBench.value },
+  );
   if ('error' in result) {
     error.value = result.error;
     return;
