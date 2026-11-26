@@ -8,6 +8,7 @@ import { downloadBlob, fileSlug, stampedName } from '@/export/download';
 import { useExportPrefs } from '@/composables/exportPrefs';
 import { downloadBoardsZip } from '@/export/renderer';
 import { useToasts } from '@/composables/toast';
+import { useDeleteBoard } from '@/composables/deleteBoard';
 import Icon from './Icon.vue';
 
 const props = defineProps<{ open: boolean }>();
@@ -15,6 +16,7 @@ const emit = defineEmits<{ close: [] }>();
 
 const store = useSaveStore();
 const { show } = useToasts();
+const { removeBoard } = useDeleteBoard();
 const dialog = ref<HTMLDialogElement | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const included = ref<Set<string>>(new Set());
@@ -90,13 +92,6 @@ async function downloadZip(): Promise<void> {
   }
 }
 
-function removeBoard(id: string, name: string): void {
-  if (store.sportBoards.length <= 1) {
-    show(`Each sport keeps at least one board.`, 'error');
-    return;
-  }
-  if (window.confirm(`Delete the board "${name}"? You can undo this.`)) store.deleteBoard(id);
-}
 
 async function readFile(file: File): Promise<void> {
   uploadError.value = null;

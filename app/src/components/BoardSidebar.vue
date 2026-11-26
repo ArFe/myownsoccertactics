@@ -3,9 +3,11 @@ import { useSaveStore, type Tool } from '@/stores/save';
 import { presetLabel } from '@/model/field';
 import { SPORTS, SPORT_IDS } from '@/model/sports';
 import type { SportId } from '@/model/types';
+import { useDeleteBoard } from '@/composables/deleteBoard';
 import Icon from './Icon.vue';
 
 const store = useSaveStore();
+const { removeBoard } = useDeleteBoard();
 
 const TOOLS: { id: Tool; label: string; key: string }[] = [
   { id: 'select', label: 'Select', key: 'V' },
@@ -51,7 +53,7 @@ const HINTS: Partial<Record<Tool, string>> = {
         <span class="count">{{ store.sportBoards.length }}</span>
       </div>
       <ul class="boards">
-        <li v-for="b in store.sportBoards" :key="b.id">
+        <li v-for="b in store.sportBoards" :key="b.id" class="board-row">
           <button
             type="button"
             class="board"
@@ -61,6 +63,16 @@ const HINTS: Partial<Record<Tool, string>> = {
           >
             <span class="board-name">{{ b.name || 'Untitled board' }}</span>
             <span class="tag">{{ presetLabel(store.sport, b.field.preset) }}</span>
+          </button>
+          <button
+            type="button"
+            class="delete"
+            :aria-label="`Delete ${b.name || 'Untitled board'}`"
+            :title="store.sportBoards.length <= 1 ? 'Each sport keeps at least one board' : 'Delete board'"
+            :disabled="store.sportBoards.length <= 1"
+            @click="removeBoard(b.id, b.name)"
+          >
+            <Icon name="trash" :size="16" />
           </button>
         </li>
       </ul>
@@ -137,8 +149,34 @@ const HINTS: Partial<Record<Tool, string>> = {
   flex-direction: column;
   gap: 4px;
 }
+.board-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.delete {
+  flex: none;
+  width: 36px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+}
+.delete:hover:not(:disabled) {
+  background: var(--seg);
+  color: var(--danger);
+}
+.delete:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 .board {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   min-height: 44px;
   display: flex;
   align-items: center;
