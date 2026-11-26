@@ -65,7 +65,9 @@ Vue 3 + TypeScript + Vite + Pinia + Konva app in `app/`. See README.md.
   id; `tidySubs()` runs on every board change, so a sub whose player is
   gone (smaller team, new preset) goes too. The bench is drawn by
   `PitchStage` under the field, so PNGs and the zip include it; the 3D
-  view does not show subs. The "Show subs" switch (none, bench, beside,
+  view does not show subs. A long bench wraps onto more rows (each chip
+  keeps at least 1.9 row heights, so names fit), and the field shrinks
+  to make room. The "Show subs" switch (none, bench, beside,
   both; save version 7) works with game day on or off; game day only
   hides the other team. Beside a player, each sub is a tag with its
   name (its number if it has none). In game day, a selected player of
